@@ -164,14 +164,18 @@ export const list = query({
           .withIndex("by_message", (q) => q.eq("messageId", message._id))
           .collect();
 
-        // Group reactions by emoji
-        const reactionGroups = reactions.reduce((acc, reaction) => {
-          if (!acc[reaction.emoji]) {
-            acc[reaction.emoji] = [];
-          }
-          acc[reaction.emoji].push(reaction.userId);
-          return acc;
-        }, {} as Record<string, string[]>);
+        // Group reactions by emoji as array
+        const reactionMap = new Map<string, string[]>();
+        reactions.forEach(reaction => {
+          const users = reactionMap.get(reaction.emoji) || [];
+          users.push(reaction.userId);
+          reactionMap.set(reaction.emoji, users);
+        });
+        const reactionGroups = Array.from(reactionMap.entries()).map(([emoji, userIds]) => ({
+          emoji,
+          userIds,
+          count: userIds.length,
+        }));
 
         return {
           ...message,

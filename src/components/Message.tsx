@@ -198,16 +198,16 @@ export function Message({ message, showAvatar, onReply, onOpenThread, isInThread
               )}
 
               {/* Reactions */}
-              {message.reactions && Object.keys(message.reactions).length > 0 && (
+              {message.reactions && message.reactions.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
-                  {Object.entries(message.reactions).map(([emoji, userIds]) => (
+                  {message.reactions.map((reaction: any) => (
                     <button
-                      key={emoji}
-                      onClick={() => handleReaction(emoji)}
+                      key={reaction.emoji}
+                      onClick={() => handleReaction(reaction.emoji)}
                       className="reaction-button"
                     >
-                      <span>{emoji}</span>
-                      <span>{(userIds as string[]).length}</span>
+                      <span>{reaction.emoji}</span>
+                      <span>{reaction.count}</span>
                     </button>
                   ))}
                 </div>
