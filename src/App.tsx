@@ -48,7 +48,7 @@ function Content() {
         <div className="min-h-screen flex items-center justify-center p-8">
           <div className="w-full max-w-md mx-auto">
             <div className="text-center mb-8">
-              <h1 className="text-4xl font-bold text-foreground mb-4">Welcome to TeamChat</h1>
+              <h1 className="text-4xl font-bold text-foreground mb-4">Welcome to MakerTalk</h1>
               <p className="text-xl text-muted-foreground">Sign in to get started</p>
             </div>
             <SignInForm />
