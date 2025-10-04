@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
+import { createPortal } from "react-dom";
 import { MessageComposer } from "./MessageComposer";
 import { MessageList } from "./MessageList";
 import { ThreadPanel } from "./ThreadPanel";
@@ -15,6 +16,13 @@ interface MessageAreaProps {
 
 export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) {
   const channel = useQuery(api.channels.get, channelId ? { channelId } : "skip");
+  const dm = useQuery(api.directMessages.get, dmId ? { dmId } : "skip");
+  const currentUser = useQuery(api.auth.loggedInUser);
+  const workspaceMembers = useQuery(api.workspaces.getMembers, { workspaceId });
+  const workspaceMembership = useQuery(
+    api.workspaces.getMembership,
+    currentUser && workspaceId ? { workspaceId, userId: currentUser._id } : "skip"
+  );
   
   // Use regular query for now to avoid pagination type issues
   const messages = useQuery(
@@ -27,11 +35,25 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
   );
 
   const sendMessage = useMutation(api.messages.send);
+  const deleteChannel = useMutation(api.channels.deleteChannel);
+  const updateChannel = useMutation(api.channels.update);
+  const addParticipantToDm = useMutation(api.directMessages.addParticipant);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [threadMessageId, setThreadMessageId] = useState<string | null>(null);
   const [showThread, setShowThread] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [showAddToDmModal, setShowAddToDmModal] = useState(false);
+  const [dmMemberSearch, setDmMemberSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  
+  const isChannelCreator = currentUser && channel?.createdBy === currentUser._id;
+  const isOwnerOrAdmin = workspaceMembership?.role === "owner" || workspaceMembership?.role === "admin";
+  const canEditChannel = isChannelCreator || isOwnerOrAdmin;
 
-  const handleSendMessage = async (text: string, attachments?: any[]) => {
+  const handleSendMessage = async (text: string, attachments?: any[], linkPreviews?: any[]) => {
     if (!text.trim() && (!attachments || attachments.length === 0)) return;
 
     try {
@@ -41,6 +63,7 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
         dmId: dmId || undefined,
         text: text.trim(),
         attachments,
+        linkPreviews,
         parentMessageId: replyingTo ? (replyingTo as Id<"messages">) : undefined,
       });
       setReplyingTo(null);
@@ -57,6 +80,57 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
   const handleCloseThread = () => {
     setShowThread(false);
     setThreadMessageId(null);
+  };
+
+  const handleDeleteChannel = async () => {
+    if (!channelId || !confirm("Are you sure you want to delete this channel? This action cannot be undone.")) return;
+    
+    try {
+      await deleteChannel({ channelId });
+      toast.success("Channel deleted successfully!");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete channel");
+    }
+  };
+
+  const handleUpdateName = async () => {
+    if (!channelId || !editName.trim()) return;
+    
+    try {
+      await updateChannel({ channelId, name: editName.trim() });
+      toast.success("Channel name updated!");
+      setEditingName(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update channel name");
+    }
+  };
+
+  const handleUpdateDescription = async () => {
+    if (!channelId) return;
+    
+    try {
+      await updateChannel({ channelId, description: editDescription.trim() || undefined });
+      toast.success("Channel description updated!");
+      setEditingDescription(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update channel description");
+    }
+  };
+
+  const handleAddToDm = async (userId: string) => {
+    if (!dmId) return;
+    
+    setLoading(true);
+    try {
+      await addParticipantToDm({ dmId, userId: userId as Id<"users"> });
+      toast.success("Participant added!");
+      setShowAddToDmModal(false);
+      setDmMemberSearch("");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to add participant");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!channelId && !dmId) {
@@ -76,36 +150,133 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
   }
 
   return (
-    <div className="h-full flex bg-background">
+    <div className="h-[calc(100dvh-4rem)] flex bg-background overflow-hidden">
       {/* Main Message Area */}
-      <div className={`flex-1 flex flex-col ${showThread ? 'border-r border-border' : ''}`}>
+      <div className={`flex-1 flex flex-col min-w-0 ${showThread ? 'hidden md:flex md:border-r md:border-border' : ''}`}>
         {/* Header */}
-        <div className="border-b border-border p-4 bg-card">
+        <div className="border-b border-border p-4 bg-card flex-shrink-0">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground flex items-center">
-                {channelId ? (
-                  <>
-                    {channel?.isPrivate ? (
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            <div className="flex items-center gap-2 flex-1">
+              <div className="flex-1">
+                {editingName ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="px-2 py-1 text-lg font-semibold border border-border rounded bg-background text-foreground focus:ring-1 focus:ring-primary"
+                      autoFocus
+                    />
+                    <button onClick={handleUpdateName} className="p-1 hover:bg-accent rounded text-muted-foreground" title="Save">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                    ) : (
-                      <span className="text-muted-foreground mr-2">#</span>
-                    )}
-                    {channel?.name}
-                  </>
+                    </button>
+                    <button onClick={() => setEditingName(false)} className="p-1 hover:bg-accent rounded text-muted-foreground" title="Cancel">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
                 ) : (
-                  <>
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                    Direct Message
-                  </>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base md:text-lg font-semibold text-foreground flex items-center">
+                      {channelId ? (
+                        <>
+                          {channel?.isPrivate ? (
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                          ) : (
+                            <span className="text-muted-foreground mr-2">#</span>
+                          )}
+                          {channel?.name}
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
+                          Direct Message
+                        </>
+                      )}
+                    </h2>
+                    {channelId && canEditChannel && (
+                      <button
+                        onClick={() => { setEditName(channel?.name || ""); setEditingName(true); }}
+                        className="p-1 hover:bg-accent rounded text-muted-foreground"
+                        title="Edit name"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                    )}
+                    {dmId && (
+                      <button
+                        onClick={() => setShowAddToDmModal(true)}
+                        className="p-1 hover:bg-accent rounded text-muted-foreground"
+                        title="Add people"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 )}
-              </h2>
-              {channel?.description && (
-                <p className="text-sm text-muted-foreground mt-1">{channel.description}</p>
+                {editingDescription ? (
+                  <div className="hidden md:flex items-center gap-2 mt-1">
+                    <input
+                      type="text"
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      placeholder="Description (optional)"
+                      className="px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:ring-1 focus:ring-primary"
+                      autoFocus
+                    />
+                    <button onClick={handleUpdateDescription} className="p-1 hover:bg-accent rounded text-muted-foreground" title="Save">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </button>
+                    <button onClick={() => setEditingDescription(false)} className="p-1 hover:bg-accent rounded text-muted-foreground" title="Cancel">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="hidden md:flex items-center gap-2 mt-1">
+                    {channel?.description ? (
+                      <p className="text-sm text-muted-foreground">{channel.description}</p>
+                    ) : (
+                      channelId && canEditChannel && <p className="text-sm text-muted-foreground italic">No description</p>
+                    )}
+                    {channelId && canEditChannel && (
+                      <button
+                        onClick={() => { setEditDescription(channel?.description || ""); setEditingDescription(true); }}
+                        className="p-1 hover:bg-accent rounded text-muted-foreground"
+                        title="Edit description"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              {channelId && canEditChannel && (
+                <button
+                  onClick={handleDeleteChannel}
+                  className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-red-500"
+                  title="Delete channel"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
               )}
             </div>
             
@@ -124,9 +295,10 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
           <MessageList
             messages={messages?.page || []}
+            workspaceId={workspaceId}
             onReply={setReplyingTo}
             onOpenThread={handleOpenThread}
             onLoadMore={() => {}}
@@ -136,7 +308,7 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
 
         {/* Reply indicator */}
         {replyingTo && (
-          <div className="px-4 py-2 bg-accent border-t border-border">
+          <div className="px-4 py-2 bg-accent border-t border-border flex-shrink-0">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">
                 Replying to message
@@ -154,18 +326,65 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
         )}
 
         {/* Message Composer */}
-        <div className="border-t border-border">
+        <div className="border-t border-border flex-shrink-0">
           <MessageComposer onSendMessage={handleSendMessage} />
         </div>
       </div>
 
       {/* Thread Panel */}
       {showThread && threadMessageId && (
-        <ThreadPanel
-          messageId={threadMessageId as Id<"messages">}
-          workspaceId={workspaceId}
-          onClose={handleCloseThread}
-        />
+        <div className="flex-1 md:w-auto">
+          <ThreadPanel
+            messageId={threadMessageId as Id<"messages">}
+            workspaceId={workspaceId}
+            onClose={handleCloseThread}
+          />
+        </div>
+      )}
+
+      {/* Add to DM Modal */}
+      {showAddToDmModal && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000]" onClick={() => { setShowAddToDmModal(false); setDmMemberSearch(""); }}>
+          <div className="bg-card border border-border rounded-lg p-4 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold mb-3">Add People to DM</h3>
+            <input
+              type="text"
+              value={dmMemberSearch}
+              onChange={(e) => setDmMemberSearch(e.target.value)}
+              placeholder="Search members..."
+              className="w-full px-3 py-2 mb-3 text-sm border border-border rounded bg-background text-foreground focus:ring-1 focus:ring-primary"
+            />
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {workspaceMembers
+                ?.filter((member: any) => {
+                  const query = dmMemberSearch.toLowerCase();
+                  const isAlreadyParticipant = dm?.participants.some((p: any) => p._id === member._id);
+                  return !isAlreadyParticipant && (!query || 
+                    member.name?.toLowerCase().includes(query) || 
+                    member.email?.toLowerCase().includes(query));
+                })
+                .map((member: any) => (
+                  <button
+                    key={member._id}
+                    onClick={() => handleAddToDm(member._id)}
+                    disabled={loading}
+                    className="w-full text-left px-3 py-2 rounded hover:bg-accent transition-colors disabled:opacity-50"
+                  >
+                    <div className="font-medium">{member.name || member.email}</div>
+                    {member.name && <div className="text-sm text-muted-foreground">{member.email}</div>}
+                  </button>
+                ))
+              }
+            </div>
+            <button
+              onClick={() => { setShowAddToDmModal(false); setDmMemberSearch(""); }}
+              className="mt-3 w-full py-2 px-3 text-sm border border-border rounded hover:bg-accent"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

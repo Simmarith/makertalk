@@ -1,25 +1,40 @@
 import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
+import { LinkPreview } from "./LinkPreview";
 
 interface MessageProps {
   message: any;
+  workspaceId: Id<"workspaces">;
   showAvatar: boolean;
   onReply: (messageId: string) => void;
   onOpenThread?: (messageId: string) => void;
   isInThread?: boolean;
 }
 
-export function Message({ message, showAvatar, onReply, onOpenThread, isInThread = false }: MessageProps) {
+export function Message({ message, workspaceId, showAvatar, onReply, onOpenThread, isInThread = false }: MessageProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text);
   const [showActions, setShowActions] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   
+  const currentUser = useQuery(api.auth.loggedInUser);
+  const workspaceMembership = useQuery(
+    api.workspaces.getMembership,
+    currentUser && workspaceId ? { workspaceId, userId: currentUser._id } : "skip"
+  );
+  const threadCount = useQuery(
+    api.messages.getThreadCount,
+    !isInThread ? { messageId: message._id } : "skip"
+  );
   const editMessage = useMutation(api.messages.edit);
   const deleteMessage = useMutation(api.messages.remove);
   const addReaction = useMutation(api.messages.addReaction);
+  
+  const isOwnMessage = currentUser?._id === message.senderId;
+  const canDelete = isOwnMessage || workspaceMembership?.role === "owner" || workspaceMembership?.role === "admin";
 
   const handleEdit = async () => {
     if (!editText.trim()) return;
@@ -68,25 +83,43 @@ export function Message({ message, showAvatar, onReply, onOpenThread, isInThread
   const isPdf = (mimeType: string) => mimeType === 'application/pdf';
   const isVideo = (mimeType: string) => mimeType.startsWith('video/');
 
+  const linkifyText = (text: string) => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlRegex);
+    return parts.map((part, i) => 
+      urlRegex.test(part) ? (
+        <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{part}</a>
+      ) : part
+    );
+  };
+
   const commonEmojis = ['👍', '❤️', '😂', '😮', '😢', '😡', '👏', '🎉'];
 
   return (
     <div
-      className="group hover:bg-accent/50 px-4 py-2 rounded-lg transition-colors relative"
+      className="group hover:bg-accent/50 px-2 md:px-4 py-2 rounded-lg transition-colors relative"
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      <div className="flex gap-3">
+      <div className="flex gap-2 md:gap-3">
         {showAvatar && (
-          <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-semibold text-sm flex-shrink-0">
-            {message.sender?.name?.[0] || message.sender?.email?.[0] || '?'}
-          </div>
+          message.sender?.image ? (
+            <img
+              src={message.sender.image}
+              alt={message.sender.name || message.sender.email}
+              className="w-6 h-6 md:w-8 md:h-8 rounded-full object-cover flex-shrink-0"
+            />
+          ) : (
+            <div className="w-6 h-6 md:w-8 md:h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-semibold text-xs md:text-sm flex-shrink-0">
+              {message.sender?.name?.[0] || message.sender?.email?.[0] || '?'}
+            </div>
+          )
         )}
         
-        <div className={`flex-1 min-w-0 ${!showAvatar ? 'ml-11' : ''}`}>
+        <div className={`flex-1 min-w-0 ${!showAvatar ? 'ml-8 md:ml-11' : ''}`}>
           {showAvatar && (
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-semibold text-foreground">
+              <span className="font-semibold text-foreground text-sm md:text-base">
                 {message.sender?.name || message.sender?.email || 'Unknown User'}
               </span>
               <span className="text-xs text-muted-foreground">
@@ -126,27 +159,36 @@ export function Message({ message, showAvatar, onReply, onOpenThread, isInThread
             </div>
           ) : (
             <>
-              <div className="text-foreground whitespace-pre-wrap break-words">
-                {message.text}
+              <div className="text-foreground whitespace-pre-wrap break-words text-sm md:text-base">
+                {linkifyText(message.text)}
               </div>
               
+              {/* Link Previews */}
+              {message.linkPreviews && message.linkPreviews.length > 0 && (
+                <div className="space-y-2">
+                  {message.linkPreviews.map((preview: any, index: number) => (
+                    <LinkPreview key={index} {...preview} />
+                  ))}
+                </div>
+              )}
+
               {/* Attachments */}
               {message.attachments && message.attachments.length > 0 && (
                 <div className="mt-2 space-y-2">
                   {message.attachments.map((attachment: any, index: number) => (
-                    <div key={index} className="border border-border rounded-lg overflow-hidden max-w-md">
+                    <div key={index} className="border border-border rounded-lg overflow-hidden max-w-full md:max-w-md">
                       {isImage(attachment.mimeType) && attachment.url ? (
                         <img
                           src={attachment.url}
                           alt={attachment.filename}
-                          className="max-w-full max-h-96 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                          className="w-full max-h-64 md:max-h-96 object-contain cursor-pointer hover:opacity-90 transition-opacity"
                           onClick={() => window.open(attachment.url, '_blank')}
                         />
                       ) : isVideo(attachment.mimeType) && attachment.url ? (
                         <video
                           src={attachment.url}
                           controls
-                          className="max-w-full max-h-96"
+                          className="w-full max-h-64 md:max-h-96"
                         >
                           Your browser does not support the video tag.
                         </video>
@@ -212,6 +254,19 @@ export function Message({ message, showAvatar, onReply, onOpenThread, isInThread
                   ))}
                 </div>
               )}
+              
+              {/* Thread Indicator */}
+              {!isInThread && threadCount !== undefined && threadCount > 0 && onOpenThread && (
+                <button
+                  onClick={() => onOpenThread(message._id)}
+                  className="mt-2 flex items-center gap-2 text-sm text-primary hover:underline"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                  <span>{threadCount} {threadCount === 1 ? 'reply' : 'replies'}</span>
+                </button>
+              )}
             </>
           )}
         </div>
@@ -219,10 +274,10 @@ export function Message({ message, showAvatar, onReply, onOpenThread, isInThread
         {/* Message Actions */}
         {showActions && !isEditing && (
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="relative">
+            <div className="">
               <button
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground"
+                className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground h-full"
                 title="Add reaction"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -231,17 +286,19 @@ export function Message({ message, showAvatar, onReply, onOpenThread, isInThread
               </button>
               
               {showEmojiPicker && (
-                <div className="absolute bottom-full right-0 mb-2 p-2 bg-card border border-border rounded-lg shadow-lg z-10">
+                <div className="absolute">
+                  <div className="relative bottom-full right-0 mb-2 p-2 bg-card border border-border rounded-lg shadow-lg z-10">
                   <div className="grid grid-cols-4 gap-1">
                     {commonEmojis.map((emoji) => (
                       <button
                         key={emoji}
                         onClick={() => handleReaction(emoji)}
-                        className="p-2 hover:bg-accent rounded text-lg"
+                        className="w-10 h-10 flex items-center justify-center hover:bg-accent rounded text-lg"
                       >
                         {emoji}
                       </button>
                     ))}
+                  </div>
                   </div>
                 </div>
               )}
@@ -261,7 +318,7 @@ export function Message({ message, showAvatar, onReply, onOpenThread, isInThread
               <button
                 onClick={() => onOpenThread(message._id)}
                 className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground"
-                title="Start thread"
+                title={threadCount && threadCount > 0 ? "Show thread" : "Start thread"}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -269,25 +326,29 @@ export function Message({ message, showAvatar, onReply, onOpenThread, isInThread
               </button>
             )}
             
-            <button
-              onClick={() => setIsEditing(true)}
-              className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground"
-              title="Edit"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-            </button>
+            {isOwnMessage && (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground"
+                title="Edit"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+            )}
             
-            <button
-              onClick={handleDelete}
-              className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-red-500"
-              title="Delete"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
+            {canDelete && (
+              <button
+                onClick={handleDelete}
+                className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-red-500"
+                title="Delete"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
           </div>
         )}
       </div>

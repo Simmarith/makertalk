@@ -98,6 +98,41 @@ export const get = query({
   },
 });
 
+export const getMembership = query({
+  args: {
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_workspace_user", (q) => 
+        q.eq("workspaceId", args.workspaceId).eq("userId", args.userId)
+      )
+      .unique();
+  },
+});
+
+export const getMembers = query({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, args) => {
+    const memberships = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
+      .collect();
+
+    const members = await Promise.all(
+      memberships.map(async (membership) => {
+        const user = await ctx.db.get(membership.userId);
+        return user ? { _id: user._id, name: user.name, email: user.email } : null;
+      })
+    );
+
+    return members.filter(Boolean);
+  },
+});
+
+
 export const generateInvite = mutation({
   args: {
     workspaceId: v.id("workspaces"),

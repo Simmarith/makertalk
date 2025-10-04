@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { Message } from "./Message";
+import { Id } from "../../convex/_generated/dataModel";
 
 interface MessageListProps {
   messages: any[];
+  workspaceId: Id<"workspaces">;
   onReply: (messageId: string) => void;
   onOpenThread: (messageId: string) => void;
   onLoadMore: (numItems?: number) => void;
   hasMore: boolean;
 }
 
-export function MessageList({ messages, onReply, onOpenThread, onLoadMore, hasMore }: MessageListProps) {
+export function MessageList({ messages, workspaceId, onReply, onOpenThread, onLoadMore, hasMore }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -73,6 +75,7 @@ export function MessageList({ messages, onReply, onOpenThread, onLoadMore, hasMo
           <Message
             key={message._id}
             message={message}
+            workspaceId={workspaceId}
             showAvatar={showAvatar}
             onReply={onReply}
             onOpenThread={onOpenThread}

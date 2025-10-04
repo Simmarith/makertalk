@@ -34,7 +34,7 @@ body {
 
 /* only use this to update the style of the auth input fields. use a different class for all other input fields */
 .auth-input-field {
-  @apply w-full px-4 py-3 rounded-lg bg-white border border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-shadow shadow-sm hover:shadow;
+  @apply w-full px-4 py-3 rounded-lg bg-white border border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-shadow shadow-sm hover:shadow text-gray-900;
 }
 
 /* only use this to update the style of the auth buttons. use the button class for all other buttons */
@@ -150,8 +150,13 @@ body {
 /* Thread panel */
 .thread-panel {
   @apply border-l border-border bg-card;
-  width: 400px;
-  min-width: 400px;
+}
+
+@media (min-width: 768px) {
+  .thread-panel {
+    width: 400px;
+    min-width: 400px;
+  }
 }
 
 /* Message reactions */
@@ -161,4 +166,12 @@ body {
 
 .reaction-button.active {
   @apply bg-primary/20 text-primary;
+}
+
+/* Link preview */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

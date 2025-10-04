@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
@@ -25,12 +26,34 @@ export function Sidebar({
 }: SidebarProps) {
   const channels = useQuery(api.channels.list, { workspaceId }) || [];
   const dms = useQuery(api.directMessages.list, { workspaceId }) || [];
+  const workspaceMembers = useQuery(api.workspaces.getMembers, { workspaceId }) || [];
   const createChannel = useMutation(api.channels.create);
   const joinChannel = useMutation(api.channels.join);
+  const leaveChannel = useMutation(api.channels.leave);
+  const addMemberToChannel = useMutation(api.channels.addMember);
+  const removeMemberFromChannel = useMutation(api.channels.removeMember);
   const generateInvite = useMutation(api.workspaces.generateInvite);
+  const createDm = useMutation(api.directMessages.create);
 
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showInviteForm, setShowInviteForm] = useState(false);
+  const [showAddMemberModal, setShowAddMemberModal] = useState<string | null>(null);
+  const channelMembers = useQuery(
+    api.channels.getMembers,
+    showAddMemberModal ? { channelId: showAddMemberModal as Id<"channels"> } : "skip"
+  );
+  const currentUser = useQuery(api.auth.loggedInUser);
+  const selectedChannel = useQuery(
+    api.channels.get,
+    showAddMemberModal ? { channelId: showAddMemberModal as Id<"channels"> } : "skip"
+  );
+  const workspaceMembership = useQuery(
+    api.workspaces.getMembership,
+    currentUser && workspaceId ? { workspaceId, userId: currentUser._id } : "skip"
+  );
+  const [showStartDmModal, setShowStartDmModal] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [dmSearchQuery, setDmSearchQuery] = useState("");
   const [channelName, setChannelName] = useState("");
   const [channelDescription, setChannelDescription] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
@@ -96,7 +119,72 @@ export function Sidebar({
     }
   };
 
+  const handleAddMember = async (userId: string) => {
+    if (!showAddMemberModal) return;
+    
+    setLoading(true);
+    try {
+      await addMemberToChannel({
+        channelId: showAddMemberModal as Id<"channels">,
+        userId: userId as Id<"users">,
+      });
+      toast.success("Member added successfully!");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to add member");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveMember = async (userId: string) => {
+    if (!showAddMemberModal) return;
+    
+    setLoading(true);
+    try {
+      await removeMemberFromChannel({
+        channelId: showAddMemberModal as Id<"channels">,
+        userId: userId as Id<"users">,
+      });
+      toast.success("Member removed successfully!");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to remove member");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLeaveChannel = async (channelId: string) => {
+    try {
+      await leaveChannel({ channelId: channelId as Id<"channels"> });
+      toast.success("Left channel successfully!");
+      if (selectedChannelId === channelId) {
+        onSelectChannel("");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to leave channel");
+    }
+  };
+
+  const handleStartDm = async (userId: string) => {
+    setLoading(true);
+    try {
+      const dmId = await createDm({
+        workspaceId,
+        participants: [userId as Id<"users">],
+      });
+      toast.success("DM started!");
+      onSelectDm(dmId);
+      setShowStartDmModal(false);
+      setDmSearchQuery("");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to start DM");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
+    <>
     <div className="h-full bg-card flex flex-col custom-scrollbar">
       {/* Workspace Header */}
       <div className="p-4 border-b border-border">
@@ -184,36 +272,76 @@ export function Sidebar({
 
           <div className="space-y-1">
             {channels.filter((channel): channel is NonNullable<typeof channel> => Boolean(channel)).map((channel) => (
-              <button
-                key={channel._id}
-                onClick={() => onSelectChannel(channel._id)}
-                className={`w-full text-left px-2 py-1 rounded text-sm hover:bg-accent transition-colors ${
-                  selectedChannelId === channel._id ? 'bg-accent' : ''
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  {channel.isPrivate ? (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                  ) : (
-                    <span className="text-muted-foreground">#</span>
-                  )}
-                  <span className="truncate">{channel.name}</span>
-                </span>
-              </button>
+              <div key={channel._id} className="flex items-center gap-1 group">
+                <button
+                  onClick={() => onSelectChannel(channel._id)}
+                  className={`flex-1 text-left px-2 py-1 rounded text-sm hover:bg-accent transition-colors ${
+                    selectedChannelId === channel._id ? 'bg-accent' : ''
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    {channel.isPrivate ? (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    ) : (
+                      <span className="text-muted-foreground">#</span>
+                    )}
+                    <span className="truncate">{channel.name}</span>
+                  </span>
+                </button>
+                {channel.isPrivate && (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowAddMemberModal(channel._id);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-accent rounded text-muted-foreground"
+                      title="Manage members"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleLeaveChannel(channel._id);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-accent rounded text-muted-foreground hover:text-red-500"
+                      title="Leave channel"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                    </button>
+                  </>
+                )}
+              </div>
             ))}
           </div>
         </div>
 
         {/* Direct Messages Section */}
         <div className="p-4">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Direct Messages
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Direct Messages
+            </h3>
+            <button
+              onClick={() => setShowStartDmModal(true)}
+              className="p-1 hover:bg-accent rounded text-muted-foreground"
+              title="Start DM"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
           <div className="space-y-1">
             {dms.map((dm) => {
-              const otherParticipants = dm.participants.filter((p: any) => p && p._id !== workspace.ownerId);
+              const otherParticipants = dm.participants.filter((p: any) => p && currentUser && p._id !== currentUser._id);
               const displayName = otherParticipants.length > 0 
                 ? otherParticipants.map((p: any) => p.name || p.email).join(", ")
                 : "You";
@@ -276,5 +404,116 @@ export function Sidebar({
         )}
       </div>
     </div>
+
+    {/* Start DM Modal */}
+    {showStartDmModal && createPortal(
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000]" onClick={() => { setShowStartDmModal(false); setDmSearchQuery(""); }}>
+        <div className="bg-card border border-border rounded-lg p-4 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          <h3 className="font-semibold mb-3">Start Direct Message</h3>
+          <input
+            type="text"
+            value={dmSearchQuery}
+            onChange={(e) => setDmSearchQuery(e.target.value)}
+            placeholder="Search members..."
+            className="w-full px-3 py-2 mb-3 text-sm border border-border rounded bg-background text-foreground focus:ring-1 focus:ring-primary"
+          />
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {workspaceMembers
+              .filter((member: any) => {
+                const query = dmSearchQuery.toLowerCase();
+                return !query || 
+                  member.name?.toLowerCase().includes(query) || 
+                  member.email?.toLowerCase().includes(query);
+              })
+              .map((member: any) => (
+                <button
+                  key={member._id}
+                  onClick={() => handleStartDm(member._id)}
+                  disabled={loading}
+                  className="w-full text-left px-3 py-2 rounded hover:bg-accent transition-colors disabled:opacity-50"
+                >
+                  <div className="font-medium">{member.name || member.email}</div>
+                  {member.name && <div className="text-sm text-muted-foreground">{member.email}</div>}
+                </button>
+              ))
+            }
+          </div>
+          <button
+            onClick={() => { setShowStartDmModal(false); setDmSearchQuery(""); }}
+            className="mt-3 w-full py-2 px-3 text-sm border border-border rounded hover:bg-accent"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>,
+      document.body
+    )}
+
+    {/* Add/Remove Member Modal */}
+    {showAddMemberModal && createPortal(
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000]" onClick={() => { setShowAddMemberModal(null); setMemberSearchQuery(""); }}>
+        <div className="bg-card border border-border rounded-lg p-4 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          <h3 className="font-semibold mb-3">Manage Channel Members</h3>
+          <input
+            type="text"
+            value={memberSearchQuery}
+            onChange={(e) => setMemberSearchQuery(e.target.value)}
+            placeholder="Search members..."
+            className="w-full px-3 py-2 mb-3 text-sm border border-border rounded bg-background text-foreground focus:ring-1 focus:ring-primary"
+          />
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {workspaceMembers
+              .filter((member: any) => {
+                const query = memberSearchQuery.toLowerCase();
+                return !query || 
+                  member.name?.toLowerCase().includes(query) || 
+                  member.email?.toLowerCase().includes(query);
+              })
+              .map((member: any) => {
+                const isMember = channelMembers?.some((m: any) => m._id === member._id);
+                const isChannelCreator = currentUser && selectedChannel?.createdBy === currentUser._id;
+                const isOwnerOrAdmin = workspaceMembership?.role === "owner" || workspaceMembership?.role === "admin";
+                const canManage = isChannelCreator || isOwnerOrAdmin;
+                
+                return (
+                  <button
+                    key={member._id}
+                    onClick={() => isMember ? handleRemoveMember(member._id) : handleAddMember(member._id)}
+                    disabled={loading || (isMember && !canManage)}
+                    className="w-full text-left px-3 py-2 rounded hover:bg-accent transition-colors disabled:opacity-50 flex items-center justify-between group"
+                  >
+                    <div>
+                      <div className="font-medium">{member.name || member.email}</div>
+                      {member.name && <div className="text-sm text-muted-foreground">{member.email}</div>}
+                    </div>
+                    {canManage && (
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        {isMember ? (
+                          <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                );
+              })
+            }
+          </div>
+          <button
+            onClick={() => { setShowAddMemberModal(null); setMemberSearchQuery(""); }}
+            className="mt-3 w-full py-2 px-3 text-sm border border-border rounded hover:bg-accent"
+          >
+            Close
+          </button>
+        </div>
+      </div>,
+      document.body
+    )}
+    </>
   );
 }

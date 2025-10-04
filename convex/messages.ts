@@ -15,6 +15,13 @@ export const send = mutation({
       mimeType: v.string(),
       size: v.number(),
     }))),
+    linkPreviews: v.optional(v.array(v.object({
+      url: v.string(),
+      title: v.union(v.string(), v.null()),
+      description: v.union(v.string(), v.null()),
+      image: v.union(v.string(), v.null()),
+      siteName: v.union(v.string(), v.null()),
+    }))),
     parentMessageId: v.optional(v.id("messages")),
   },
   handler: async (ctx, args) => {
@@ -81,9 +88,39 @@ export const send = mutation({
       senderId: userId,
       text: args.text,
       attachments: processedAttachments,
+      linkPreviews: args.linkPreviews,
       parentMessageId: args.parentMessageId,
       createdAt: Date.now(),
     });
+  },
+});
+
+export const get = query({
+  args: { messageId: v.id("messages") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return null;
+    }
+
+    const message = await ctx.db.get(args.messageId);
+    if (!message || message.deletedAt) {
+      return null;
+    }
+
+    // Validate access to the workspace
+    const workspaceMembership = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_workspace_user", (q) => 
+        q.eq("workspaceId", message.workspaceId).eq("userId", userId)
+      )
+      .unique();
+
+    if (!workspaceMembership) {
+      return null;
+    }
+
+    return message;
   },
 });
 
@@ -149,7 +186,10 @@ export const list = query({
     }
 
     const result = await query
-      .filter((q) => q.eq(q.field("deletedAt"), undefined))
+      .filter((q) => q.and(
+        q.eq(q.field("deletedAt"), undefined),
+        q.eq(q.field("parentMessageId"), undefined)
+      ))
       .order("desc")
       .paginate(args.paginationOpts);
 
@@ -182,7 +222,8 @@ export const list = query({
           sender: sender ? { 
             _id: sender._id, 
             name: sender.name, 
-            email: sender.email 
+            email: sender.email,
+            image: sender.image,
           } : null,
           reactions: reactionGroups,
         };
@@ -193,6 +234,19 @@ export const list = query({
       ...result,
       page: messagesWithSenders,
     };
+  },
+});
+
+export const getThreadCount = query({
+  args: { messageId: v.id("messages") },
+  handler: async (ctx, args) => {
+    const count = await ctx.db
+      .query("messages")
+      .withIndex("by_parent", (q) => q.eq("parentMessageId", args.messageId))
+      .filter((q) => q.eq(q.field("deletedAt"), undefined))
+      .collect();
+    
+    return count.length;
   },
 });
 
@@ -241,7 +295,8 @@ export const getThreadMessages = query({
           sender: sender ? { 
             _id: sender._id, 
             name: sender.name, 
-            email: sender.email 
+            email: sender.email,
+            image: sender.image,
           } : null,
         };
       })
@@ -286,7 +341,22 @@ export const remove = mutation({
     }
 
     const message = await ctx.db.get(args.messageId);
-    if (!message || message.senderId !== userId) {
+    if (!message) {
+      throw new Error("Message not found");
+    }
+
+    // Check if user is the sender, workspace owner, or admin
+    const workspaceMembership = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_workspace_user", (q) => 
+        q.eq("workspaceId", message.workspaceId).eq("userId", userId)
+      )
+      .unique();
+
+    const isOwnerOrAdmin = workspaceMembership?.role === "owner" || workspaceMembership?.role === "admin";
+    const isSender = message.senderId === userId;
+
+    if (!isSender && !isOwnerOrAdmin) {
       throw new Error("Cannot delete this message");
     }
 

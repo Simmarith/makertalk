@@ -60,6 +60,13 @@ const applicationTables = {
       size: v.number(),
       url: v.optional(v.string()),
     }))),
+    linkPreviews: v.optional(v.array(v.object({
+      url: v.string(),
+      title: v.union(v.string(), v.null()),
+      description: v.union(v.string(), v.null()),
+      image: v.union(v.string(), v.null()),
+      siteName: v.union(v.string(), v.null()),
+    }))),
     parentMessageId: v.optional(v.id("messages")),
     editedAt: v.optional(v.number()),
     deletedAt: v.optional(v.number()),

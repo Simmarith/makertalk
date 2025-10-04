@@ -1,10 +1,10 @@
 import { useState, useRef, useCallback } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
 
 interface MessageComposerProps {
-  onSendMessage: (text: string, attachments?: any[]) => void;
+  onSendMessage: (text: string, attachments?: any[], linkPreviews?: any[]) => void;
   placeholder?: string;
 }
 
@@ -17,6 +17,12 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
+  const fetchMetadata = useAction(api.linkPreviews.fetchMetadata);
+
+  const extractUrls = (text: string): string[] => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return text.match(urlRegex) || [];
+  };
 
   // Auto-resize textarea
   const adjustTextareaHeight = useCallback(() => {
@@ -64,7 +70,13 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
         );
       }
 
-      await onSendMessage(message, uploadedAttachments);
+      // Fetch link previews
+      const urls = extractUrls(message);
+      const linkPreviews = await Promise.all(
+        urls.map(url => fetchMetadata({ url }).catch(() => null))
+      ).then(results => results.filter(Boolean));
+
+      await onSendMessage(message, uploadedAttachments, linkPreviews);
       setMessage("");
       setAttachments([]);
       if (fileInputRef.current) {
@@ -130,7 +142,7 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
   };
 
   return (
-    <form onSubmit={handleSubmit} className="p-4">
+    <form onSubmit={handleSubmit} className="p-2 md:p-4">
       {/* Attachment Preview */}
       {attachments.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-2">
@@ -181,9 +193,9 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
             }}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="w-full px-4 py-3 pr-24 border border-border rounded-lg bg-background text-foreground resize-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="w-full px-3 md:px-4 py-2 md:py-3 pr-20 md:pr-24 border border-border rounded-lg bg-background text-foreground resize-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm md:text-base"
             rows={1}
-            style={{ minHeight: '48px' }}
+            style={{ minHeight: '40px' }}
             disabled={uploading}
           />
           
@@ -206,7 +218,7 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
         <button
           type="submit"
           disabled={(!message.trim() && attachments.length === 0) || uploading}
-          className="px-4 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+          className="px-3 md:px-4 py-2 md:py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
         >
           {uploading ? (
             <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin"></div>

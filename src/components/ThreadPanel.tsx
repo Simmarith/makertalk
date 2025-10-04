@@ -12,6 +12,7 @@ interface ThreadPanelProps {
 }
 
 export function ThreadPanel({ messageId, workspaceId, onClose }: ThreadPanelProps) {
+  const parentMessage = useQuery(api.messages.get, { messageId });
   const threadMessages = useQuery(
     api.messages.getThreadMessages,
     { 
@@ -22,18 +23,18 @@ export function ThreadPanel({ messageId, workspaceId, onClose }: ThreadPanelProp
 
   const sendMessage = useMutation(api.messages.send);
 
-  const handleSendReply = async (text: string, attachments?: any[]) => {
+  const handleSendReply = async (text: string, attachments?: any[], linkPreviews?: any[]) => {
     if (!text.trim() && (!attachments || attachments.length === 0)) return;
+    if (!parentMessage) return;
 
     try {
-      // We need to get the parent message context from the thread messages
-      // For now, we'll assume it's a channel message
       await sendMessage({
         workspaceId,
-        channelId: undefined, // This would need to be determined from parent message
-        dmId: undefined,
+        channelId: parentMessage.channelId || undefined,
+        dmId: parentMessage.dmId || undefined,
         text: text.trim(),
         attachments,
+        linkPreviews,
         parentMessageId: messageId,
       });
     } catch (error) {
@@ -78,6 +79,7 @@ export function ThreadPanel({ messageId, workspaceId, onClose }: ThreadPanelProp
               <Message
                 key={message._id}
                 message={message}
+                workspaceId={workspaceId}
                 showAvatar={showAvatar}
                 onReply={() => {}}
                 isInThread={true}
