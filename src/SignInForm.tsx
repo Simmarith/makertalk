@@ -1,12 +1,17 @@
 "use client";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
 export function SignInForm() {
   const { signIn } = useAuthActions();
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
   const [submitting, setSubmitting] = useState(false);
+  const [formLoadTime, setFormLoadTime] = useState<number>(0);
+
+  useEffect(() => {
+    setFormLoadTime(Date.now());
+  }, []);
 
   return (
     <div className="w-full">
@@ -14,8 +19,21 @@ export function SignInForm() {
         className="flex flex-col gap-form-field"
         onSubmit={(e) => {
           e.preventDefault();
-          setSubmitting(true);
           const formData = new FormData(e.target as HTMLFormElement);
+          
+          // Honeypot check
+          if (formData.get("website")) {
+            return;
+          }
+          
+          // Time-based check (minimum 2 seconds)
+          const timeTaken = Date.now() - formLoadTime;
+          if (timeTaken < 2000) {
+            toast.error("Please take your time filling out the form.");
+            return;
+          }
+          
+          setSubmitting(true);
           formData.set("flow", flow);
           void signIn("password", formData).catch((error) => {
             let toastTitle = "";
@@ -45,6 +63,14 @@ export function SignInForm() {
           name="password"
           placeholder="Password"
           required
+        />
+        {/* Honeypot field - hidden from users */}
+        <input
+          type="text"
+          name="website"
+          autoComplete="off"
+          tabIndex={-1}
+          style={{ position: 'absolute', left: '-9999px' }}
         />
         <button className="auth-button" type="submit" disabled={submitting}>
           {flow === "signIn" ? "Sign in" : "Sign up"}
