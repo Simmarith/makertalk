@@ -10,8 +10,10 @@ export function SignInForm() {
   const [formLoadTime, setFormLoadTime] = useState<number>(0);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
+  const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
 
   useEffect(() => {
     setFormLoadTime(Date.now());
@@ -34,7 +36,8 @@ export function SignInForm() {
 
   const emailError = emailTouched && !isValidEmail(email) ? "Please enter a valid email address" : "";
   const passwordErrors = passwordTouched && flow === "signUp" ? getPasswordErrors(password) : [];
-  const isFormValid = isValidEmail(email) && (flow === "signIn" || getPasswordErrors(password).length === 0);
+  const confirmPasswordError = confirmPasswordTouched && flow === "signUp" && password !== confirmPassword ? "Passwords do not match" : "";
+  const isFormValid = isValidEmail(email) && (flow === "signIn" || (getPasswordErrors(password).length === 0 && password === confirmPassword));
 
   return (
     <div className="w-full">
@@ -64,6 +67,10 @@ export function SignInForm() {
             }
             if (flow === "signUp" && passwordErrors.length > 0) {
               toast.error("Please fix password requirements");
+              return;
+            }
+            if (flow === "signUp" && password !== confirmPassword) {
+              toast.error("Passwords do not match");
               return;
             }
           }
@@ -123,6 +130,23 @@ export function SignInForm() {
             </div>
           )}
         </div>
+        {flow === "signUp" && (
+          <div className="mt-3">
+            <input
+              className={`auth-input-field ${confirmPasswordError ? 'border-red-500 focus:ring-red-500' : ''}`}
+              type="password"
+              name="confirmPassword"
+              placeholder="Confirm Password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              onBlur={() => setConfirmPasswordTouched(true)}
+              required
+            />
+            {confirmPasswordError && (
+              <div className="text-red-500 text-sm mt-1">{confirmPasswordError}</div>
+            )}
+          </div>
+        )}
         {/* Honeypot field - hidden from users */}
         <input
           type="text"
@@ -151,6 +175,8 @@ export function SignInForm() {
               setFlow(flow === "signIn" ? "signUp" : "signIn");
               setEmailTouched(false);
               setPasswordTouched(false);
+              setConfirmPasswordTouched(false);
+              setConfirmPassword("");
             }}
           >
             {flow === "signIn" ? "Sign up instead" : "Sign in instead"}
