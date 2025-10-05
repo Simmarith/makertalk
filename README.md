@@ -72,6 +72,26 @@ Check out the [Convex docs](https://docs.convex.dev/) for more information on ho
 * Check out the [Hosting and Deployment](https://docs.convex.dev/production/) docs for how to deploy your app
 * Read the [Best Practices](https://docs.convex.dev/understanding/best-practices/) guide for tips on how to improve you app further
 
+### Automated Deployment
+
+This project includes a GitHub Actions workflow that automatically builds and deploys to your server on push to the `master` branch.
+
+**Required GitHub Secrets** (configure in Settings → Environments → default):
+- `CONVEX_SELF_HOSTED_URL` - Your Convex deployment URL
+- `CONVEX_SELF_HOSTED_ADMIN_KEY` - Your Convex admin key
+- `VITE_CONVEX_URL` - Your Convex URL for the frontend
+- `SSH_HOST` - Your server hostname/IP
+- `SSH_USERNAME` - SSH username
+- `SSH_PRIVATE_KEY` - SSH private key for authentication
+- `SSH_PORT` - SSH port (optional, defaults to 22)
+- `DEPLOY_PATH` - Target directory on server (e.g., `/var/www/html`)
+
+The workflow:
+1. Installs dependencies
+2. Creates `.env.local` from secrets
+3. Builds the project
+4. Deploys the `dist` folder to your server via SSH
+
 ## 🌐 HTTP API
 
 User-defined http routes are defined in the `convex/router.ts` file. We split these routes into a separate file from `convex/http.ts` to allow us to prevent the LLM from modifying the authentication routes.
