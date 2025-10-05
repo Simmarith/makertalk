@@ -124,7 +124,7 @@ export const getMembers = query({
     const members = await Promise.all(
       memberships.map(async (membership) => {
         const user = await ctx.db.get(membership.userId);
-        return user ? { _id: user._id, name: user.name, email: user.email } : null;
+        return user ? { _id: user._id, name: user.name, email: user.email, image: user.image } : null;
       })
     );
 

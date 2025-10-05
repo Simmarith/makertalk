@@ -329,7 +329,7 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel }: M
 
         {/* Message Composer */}
         <div className="border-t border-border flex-shrink-0">
-          <MessageComposer workspaceId={workspaceId} onSendMessage={(text, attachments, linkPreviews) => void handleSendMessage(text, attachments, linkPreviews)} />
+          <MessageComposer workspaceId={workspaceId} channelId={channelId} dmId={dmId} onSendMessage={(text, attachments, linkPreviews) => void handleSendMessage(text, attachments, linkPreviews)} />
         </div>
       </div>
 

@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { LinkPreview } from "./LinkPreview";
+import { UserTooltip } from "./UserTooltip";
 
 interface MessageProps {
   message: any;
@@ -17,6 +18,7 @@ interface MessageProps {
 
 export function Message({ message, workspaceId, showAvatar, onReply, onOpenThread, isInThread = false, onChannelClick }: MessageProps) {
   const channels = useQuery(api.channels.list, { workspaceId });
+  const workspaceMembers = useQuery(api.workspaces.getMembers, { workspaceId });
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text);
   const [showActions, setShowActions] = useState(false);
@@ -88,9 +90,7 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
   const linkifyText = (text: string) => {
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
-    const urlRegex = /https?:\/\/[^\s]+/g;
-    const channelRegex = /#([a-zA-Z0-9_-]+)/g;
-    const combinedRegex = /(https?:\/\/[^\s]+)|(#[a-zA-Z0-9_-]+)/g;
+    const combinedRegex = /(https?:\/\/[^\s]+)|(#[a-zA-Z0-9_-]+)|(@[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
     
     let match;
     while ((match = combinedRegex.exec(text)) !== null) {
@@ -107,6 +107,18 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
           parts.push(<button key={match.index} onClick={() => onChannelClick(channel._id)} className="text-primary hover:underline font-medium">{match[2]}</button>);
         } else {
           parts.push(match[2]);
+        }
+      } else if (match[3]) {
+        const email = match[3].slice(1);
+        const member = workspaceMembers?.find(m => m?.email === email);
+        if (member) {
+          parts.push(
+            <UserTooltip key={match.index} name={member.name || member.email || "unknown-user"} email={member.email || "unknonwn-email"} image={member.image}>
+              <span className="text-primary hover:underline font-medium cursor-pointer">{match[3]}</span>
+            </UserTooltip>
+          );
+        } else {
+          parts.push(match[3]);
         }
       }
       

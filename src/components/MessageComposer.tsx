@@ -8,15 +8,19 @@ interface MessageComposerProps {
   onSendMessage: (text: string, attachments?: any[], linkPreviews?: any[]) => void;
   placeholder?: string;
   workspaceId: Id<"workspaces">;
+  channelId?: Id<"channels"> | null;
+  dmId?: Id<"directMessages"> | null;
 }
 
-export function MessageComposer({ onSendMessage, placeholder = "Type a message...", workspaceId }: MessageComposerProps) {
+export function MessageComposer({ onSendMessage, placeholder = "Type a message...", workspaceId, channelId, dmId }: MessageComposerProps) {
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showChannelAutocomplete, setShowChannelAutocomplete] = useState(false);
+  const [showUserAutocomplete, setShowUserAutocomplete] = useState(false);
   const [channelQuery, setChannelQuery] = useState("");
+  const [userQuery, setUserQuery] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -24,6 +28,11 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
   const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
   const fetchMetadata = useAction(api.linkPreviews.fetchMetadata);
   const channels = useQuery(api.channels.list, { workspaceId });
+  const channelMembers = useQuery(api.channels.getMembers, channelId ? { channelId } : "skip");
+  const dm = useQuery(api.directMessages.get, dmId ? { dmId } : "skip");
+  const workspaceMembers = useQuery(api.workspaces.getMembers, { workspaceId });
+  
+  const availableUsers = channelId ? channelMembers : (dmId ? dm?.participants : workspaceMembers);
 
   const extractUrls = (text: string): string[] => {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -135,7 +144,7 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (showChannelAutocomplete && (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter")) {
+    if ((showChannelAutocomplete || showUserAutocomplete) && (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter")) {
       e.preventDefault();
       return;
     }
@@ -145,6 +154,7 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
     }
     if (e.key === "Escape") {
       setShowChannelAutocomplete(false);
+      setShowUserAutocomplete(false);
     }
   };
 
@@ -157,6 +167,18 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
     const newText = textBeforeCursor.slice(0, lastHashIndex) + `#${channelName} ` + textAfterCursor;
     setMessage(newText);
     setShowChannelAutocomplete(false);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  };
+
+  const insertUser = (userEmail: string) => {
+    const cursorPos = textareaRef.current?.selectionStart || 0;
+    const textBeforeCursor = message.slice(0, cursorPos);
+    const textAfterCursor = message.slice(cursorPos);
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+    
+    const newText = textBeforeCursor.slice(0, lastAtIndex) + `@${userEmail} ` + textAfterCursor;
+    setMessage(newText);
+    setShowUserAutocomplete(false);
     setTimeout(() => textareaRef.current?.focus(), 0);
   };
 
@@ -219,16 +241,23 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
               setMessage(value);
               adjustTextareaHeight();
               
-              // Check for # trigger
+              // Check for # and @ triggers
               const cursorPos = e.target.selectionStart;
               const textBeforeCursor = value.slice(0, cursorPos);
-              const match = textBeforeCursor.match(/#([a-zA-Z0-9_-]*)$/);
+              const channelMatch = textBeforeCursor.match(/#([a-zA-Z0-9_-]*)$/);
+              const userMatch = textBeforeCursor.match(/@([a-zA-Z0-9._+-]*@?[a-zA-Z0-9.-]*)$/);
               
-              if (match) {
-                setChannelQuery(match[1]);
+              if (channelMatch) {
+                setChannelQuery(channelMatch[1]);
                 setShowChannelAutocomplete(true);
+                setShowUserAutocomplete(false);
+              } else if (userMatch) {
+                setUserQuery(userMatch[1]);
+                setShowUserAutocomplete(true);
+                setShowChannelAutocomplete(false);
               } else {
                 setShowChannelAutocomplete(false);
+                setShowUserAutocomplete(false);
               }
             }}
             onKeyDown={handleKeyDown}
@@ -254,6 +283,32 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
                   >
                     <span className="text-muted-foreground">#</span>
                     <span>{channel?.name}</span>
+                  </button>
+                ))}
+            </div>
+          )}
+
+          {/* User Autocomplete */}
+          {showUserAutocomplete && availableUsers && (
+            <div className="absolute bottom-full left-0 mb-2 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto z-10 w-64">
+              {availableUsers
+                .filter((m: any) => {
+                  const query = userQuery.toLowerCase();
+                  return (m?.name?.toLowerCase().includes(query) || m?.email?.toLowerCase().includes(query));
+                })
+                .slice(0, 5)
+                .map((member: any) => (
+                  <button
+                    key={member._id}
+                    type="button"
+                    onClick={() => insertUser(member?.email || '')}
+                    className="w-full text-left px-3 py-2 hover:bg-accent flex items-center gap-2"
+                  >
+                    <span className="text-muted-foreground">@</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{member?.name || member?.email}</div>
+                      {member?.name && <div className="text-xs text-muted-foreground truncate">{member?.email}</div>}
+                    </div>
                   </button>
                 ))}
             </div>
