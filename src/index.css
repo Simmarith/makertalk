@@ -154,7 +154,6 @@ body {
 
 @media (min-width: 768px) {
   .thread-panel {
-    width: 400px;
     min-width: 400px;
   }
 }

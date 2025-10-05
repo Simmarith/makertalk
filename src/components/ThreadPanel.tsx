@@ -43,7 +43,7 @@ export function ThreadPanel({ messageId, workspaceId, onClose }: ThreadPanelProp
   };
 
   return (
-    <div className="thread-panel flex flex-col h-full">
+    <div className="thread-panel flex flex-col h-full w-full">
       {/* Header */}
       <div className="p-4 border-b border-border bg-card">
         <div className="flex items-center justify-between">
@@ -100,7 +100,7 @@ export function ThreadPanel({ messageId, workspaceId, onClose }: ThreadPanelProp
       {/* Reply Composer */}
       <div className="border-t border-border">
         <MessageComposer 
-          onSendMessage={handleSendReply}
+          onSendMessage={(text, attachments, linkPreviews) => void handleSendReply(text, attachments, linkPreviews)}
           placeholder="Reply to thread..."
         />
       </div>

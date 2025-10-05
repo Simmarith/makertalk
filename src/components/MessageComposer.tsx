@@ -76,7 +76,7 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
         urls.map(url => fetchMetadata({ url }).catch(() => null))
       ).then(results => results.filter(Boolean));
 
-      await onSendMessage(message, uploadedAttachments, linkPreviews);
+      onSendMessage(message, uploadedAttachments, linkPreviews);
       setMessage("");
       setAttachments([]);
       if (fileInputRef.current) {
@@ -129,7 +129,7 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e as any);
+      void handleSubmit(e as any);
     }
   };
 
@@ -142,7 +142,7 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
   };
 
   return (
-    <form onSubmit={handleSubmit} className="p-2 md:p-4">
+    <form onSubmit={(e) => void handleSubmit(e)} className="p-2 md:p-4">
       {/* Attachment Preview */}
       {attachments.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-2">

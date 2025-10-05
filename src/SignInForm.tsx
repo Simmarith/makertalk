@@ -8,10 +8,33 @@ export function SignInForm() {
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
   const [submitting, setSubmitting] = useState(false);
   const [formLoadTime, setFormLoadTime] = useState<number>(0);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
 
   useEffect(() => {
     setFormLoadTime(Date.now());
   }, []);
+
+  // Validation functions
+  const isValidEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const getPasswordErrors = (password: string) => {
+    const errors: string[] = [];
+    if (password.length < 8) errors.push("At least 8 characters");
+    if (!/[A-Z]/.test(password)) errors.push("One uppercase letter");
+    if (!/[a-z]/.test(password)) errors.push("One lowercase letter");
+    if (!/\d/.test(password)) errors.push("One number");
+    return errors;
+  };
+
+  const emailError = emailTouched && !isValidEmail(email) ? "Please enter a valid email address" : "";
+  const passwordErrors = passwordTouched && flow === "signUp" ? getPasswordErrors(password) : [];
+  const isFormValid = isValidEmail(email) && (flow === "signIn" || getPasswordErrors(password).length === 0);
 
   return (
     <div className="w-full">
@@ -32,6 +55,18 @@ export function SignInForm() {
             toast.error("Please take your time filling out the form.");
             return;
           }
+
+          // Frontend validation
+          if (!isFormValid) {
+            if (!isValidEmail(email)) {
+              toast.error("Please enter a valid email address");
+              return;
+            }
+            if (flow === "signUp" && passwordErrors.length > 0) {
+              toast.error("Please fix password requirements");
+              return;
+            }
+          }
           
           setSubmitting(true);
           formData.set("flow", flow);
@@ -50,20 +85,44 @@ export function SignInForm() {
           });
         }}
       >
-        <input
-          className="auth-input-field"
-          type="email"
-          name="email"
-          placeholder="Email"
-          required
-        />
-        <input
-          className="auth-input-field"
-          type="password"
-          name="password"
-          placeholder="Password"
-          required
-        />
+        <div>
+          <input
+            className={`auth-input-field ${emailError ? 'border-red-500 focus:ring-red-500' : ''}`}
+            type="email"
+            name="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onBlur={() => setEmailTouched(true)}
+            required
+          />
+          {emailError && (
+            <div className="text-red-500 text-sm mt-1">{emailError}</div>
+          )}
+        </div>
+        
+        <div className="mt-3">
+          <input
+            className={`auth-input-field ${passwordErrors.length > 0 ? 'border-red-500 focus:ring-red-500' : ''}`}
+            type="password"
+            name="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onBlur={() => setPasswordTouched(true)}
+            required
+          />
+          {passwordErrors.length > 0 && flow === "signUp" && (
+            <div className="text-red-500 text-sm mt-1">
+              <div className="font-medium">Password must include:</div>
+              <ul className="ml-4 list-disc">
+                {passwordErrors.map((error, index) => (
+                  <li key={index}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
         {/* Honeypot field - hidden from users */}
         <input
           type="text"
@@ -72,10 +131,14 @@ export function SignInForm() {
           tabIndex={-1}
           style={{ position: 'absolute', left: '-9999px' }}
         />
-        <button className="auth-button" type="submit" disabled={submitting}>
+        <button 
+          className={`auth-button mt-8 ${!isFormValid ? 'opacity-50 cursor-not-allowed' : ''}`} 
+          type="submit" 
+          disabled={submitting || !isFormValid}
+        >
           {flow === "signIn" ? "Sign in" : "Sign up"}
         </button>
-        <div className="text-center text-sm text-secondary">
+        <div className="text-center text-sm text-muted-foreground">
           <span>
             {flow === "signIn"
               ? "Don't have an account? "
@@ -84,20 +147,16 @@ export function SignInForm() {
           <button
             type="button"
             className="text-primary hover:text-primary-hover hover:underline font-medium cursor-pointer"
-            onClick={() => setFlow(flow === "signIn" ? "signUp" : "signIn")}
+            onClick={() => {
+              setFlow(flow === "signIn" ? "signUp" : "signIn");
+              setEmailTouched(false);
+              setPasswordTouched(false);
+            }}
           >
             {flow === "signIn" ? "Sign up instead" : "Sign in instead"}
           </button>
         </div>
       </form>
-      <div className="flex items-center justify-center my-3">
-        <hr className="my-4 grow border-gray-200" />
-        <span className="mx-4 text-secondary">or</span>
-        <hr className="my-4 grow border-gray-200" />
-      </div>
-      <button className="auth-button" onClick={() => void signIn("anonymous")}>
-        Sign in anonymously
-      </button>
     </div>
   );
 }

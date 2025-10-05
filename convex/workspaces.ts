@@ -215,3 +215,98 @@ export const joinByInvite = mutation({
     return invite.workspaceId;
   },
 });
+
+export const updateMemberRole = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    newRole: v.union(v.literal("admin"), v.literal("member")),
+  },
+  handler: async (ctx, args) => {
+    const currentUserId = await getAuthUserId(ctx);
+    if (!currentUserId) {
+      throw new Error("Not authenticated");
+    }
+
+    // Check if current user is owner or admin
+    const currentUserMembership = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_workspace_user", (q) => 
+        q.eq("workspaceId", args.workspaceId).eq("userId", currentUserId)
+      )
+      .unique();
+
+    if (!currentUserMembership || (currentUserMembership.role !== "owner" && currentUserMembership.role !== "admin")) {
+      throw new Error("Only workspace owners and admins can change member roles");
+    }
+
+    // Get target user's membership
+    const targetMembership = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_workspace_user", (q) => 
+        q.eq("workspaceId", args.workspaceId).eq("userId", args.userId)
+      )
+      .unique();
+
+    if (!targetMembership) {
+      throw new Error("User is not a member of this workspace");
+    }
+
+    // Prevent owners from being demoted (only they can transfer ownership)
+    if (targetMembership.role === "owner") {
+      throw new Error("Cannot change owner role. Transfer ownership first.");
+    }
+
+    // Prevent non-owners from promoting users to admin if they're not owner themselves
+    if (args.newRole === "admin" && currentUserMembership.role !== "owner") {
+      throw new Error("Only workspace owners can promote members to admin");
+    }
+
+    // Update the role
+    await ctx.db.patch(targetMembership._id, {
+      role: args.newRole,
+    });
+  },
+});
+
+export const getMembersWithRoles = query({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return [];
+    }
+
+    // Check if user is member of workspace
+    const membership = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_workspace_user", (q) => 
+        q.eq("workspaceId", args.workspaceId).eq("userId", userId)
+      )
+      .unique();
+
+    if (!membership) {
+      return [];
+    }
+
+    const memberships = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
+      .collect();
+
+    const members = await Promise.all(
+      memberships.map(async (membership) => {
+        const user = await ctx.db.get(membership.userId);
+        return user ? { 
+          _id: user._id, 
+          name: user.name, 
+          email: user.email,
+          role: membership.role,
+          joinedAt: membership.joinedAt
+        } : null;
+      })
+    );
+
+    return members.filter(Boolean);
+  },
+});

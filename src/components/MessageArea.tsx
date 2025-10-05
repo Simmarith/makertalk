@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
@@ -67,7 +67,7 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
         parentMessageId: replyingTo ? (replyingTo as Id<"messages">) : undefined,
       });
       setReplyingTo(null);
-    } catch (error) {
+    } catch {
       toast.error("Failed to send message");
     }
   };
@@ -88,8 +88,8 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
     try {
       await deleteChannel({ channelId });
       toast.success("Channel deleted successfully!");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to delete channel");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete channel");
     }
   };
 
@@ -100,8 +100,8 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
       await updateChannel({ channelId, name: editName.trim() });
       toast.success("Channel name updated!");
       setEditingName(false);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to update channel name");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to update channel name");
     }
   };
 
@@ -167,7 +167,7 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
                       className="px-2 py-1 text-lg font-semibold border border-border rounded bg-background text-foreground focus:ring-1 focus:ring-primary"
                       autoFocus
                     />
-                    <button onClick={handleUpdateName} className="p-1 hover:bg-accent rounded text-muted-foreground" title="Save">
+                    <button onClick={() => void handleUpdateName()} className="p-1 hover:bg-accent rounded text-muted-foreground" title="Save">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
@@ -235,7 +235,7 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
                       className="px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:ring-1 focus:ring-primary"
                       autoFocus
                     />
-                    <button onClick={handleUpdateDescription} className="p-1 hover:bg-accent rounded text-muted-foreground" title="Save">
+                    <button onClick={() => void handleUpdateDescription()} className="p-1 hover:bg-accent rounded text-muted-foreground" title="Save">
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
@@ -269,7 +269,7 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
               </div>
               {channelId && canEditChannel && (
                 <button
-                  onClick={handleDeleteChannel}
+                  onClick={() => void handleDeleteChannel()}
                   className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-red-500"
                   title="Delete channel"
                 >
@@ -327,13 +327,13 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
 
         {/* Message Composer */}
         <div className="border-t border-border flex-shrink-0">
-          <MessageComposer onSendMessage={handleSendMessage} />
+          <MessageComposer onSendMessage={(text, attachments, linkPreviews) => void handleSendMessage(text, attachments, linkPreviews)} />
         </div>
       </div>
 
       {/* Thread Panel */}
       {showThread && threadMessageId && (
-        <div className="flex-1 md:w-auto">
+        <div className="w-full md:flex-1 md:max-w-md h-full">
           <ThreadPanel
             messageId={threadMessageId as Id<"messages">}
             workspaceId={workspaceId}
@@ -366,7 +366,7 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
                 .map((member: any) => (
                   <button
                     key={member._id}
-                    onClick={() => handleAddToDm(member._id)}
+                    onClick={() => void handleAddToDm(member._id)}
                     disabled={loading}
                     className="w-full text-left px-3 py-2 rounded hover:bg-accent transition-colors disabled:opacity-50"
                   >
