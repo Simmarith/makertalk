@@ -23,6 +23,14 @@ jobs:
       - name: Install dependencies
         run: npm install
       
+      - name: Create .env.local
+        run: |
+          cat > .env.local << EOF
+          CONVEX_SELF_HOSTED_URL='${{ secrets.CONVEX_SELF_HOSTED_URL }}'
+          CONVEX_SELF_HOSTED_ADMIN_KEY='${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}'
+          VITE_CONVEX_URL='${{ secrets.VITE_CONVEX_URL }}'
+          EOF
+      
       - name: Build
         run: npm run build
       
