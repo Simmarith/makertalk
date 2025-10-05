@@ -91,6 +91,10 @@ export function ChatInterface({ workspaceId, onBackToWorkspaces }: ChatInterface
             workspaceId={workspaceId as Id<"workspaces">}
             channelId={selectedChannelId as Id<"channels"> | null}
             dmId={selectedDmId as Id<"directMessages"> | null}
+            onSelectChannel={(channelId) => {
+              setSelectedChannelId(channelId);
+              setSelectedDmId(null);
+            }}
           />
         </div>
       </div>

@@ -1,23 +1,29 @@
 import { useState, useRef, useCallback } from "react";
-import { useMutation, useAction } from "convex/react";
+import { useMutation, useAction, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
 
 interface MessageComposerProps {
   onSendMessage: (text: string, attachments?: any[], linkPreviews?: any[]) => void;
   placeholder?: string;
+  workspaceId: Id<"workspaces">;
 }
 
-export function MessageComposer({ onSendMessage, placeholder = "Type a message..." }: MessageComposerProps) {
+export function MessageComposer({ onSendMessage, placeholder = "Type a message...", workspaceId }: MessageComposerProps) {
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [showChannelAutocomplete, setShowChannelAutocomplete] = useState(false);
+  const [channelQuery, setChannelQuery] = useState("");
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
   const fetchMetadata = useAction(api.linkPreviews.fetchMetadata);
+  const channels = useQuery(api.channels.list, { workspaceId });
 
   const extractUrls = (text: string): string[] => {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -76,7 +82,7 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
         urls.map(url => fetchMetadata({ url }).catch(() => null))
       ).then(results => results.filter(Boolean));
 
-      onSendMessage(message, uploadedAttachments, linkPreviews);
+      await onSendMessage(message, uploadedAttachments, linkPreviews);
       setMessage("");
       setAttachments([]);
       if (fileInputRef.current) {
@@ -87,6 +93,7 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
       toast.error("Failed to send message");
     } finally {
       setUploading(false);
+      setTimeout(() => textareaRef.current?.focus(), 0);
     }
   };
 
@@ -110,6 +117,7 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
     e.preventDefault();
     setIsDragOver(false);
     handleFileSelect(e.dataTransfer.files);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -127,10 +135,29 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (showChannelAutocomplete && (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter")) {
+      e.preventDefault();
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void handleSubmit(e as any);
     }
+    if (e.key === "Escape") {
+      setShowChannelAutocomplete(false);
+    }
+  };
+
+  const insertChannel = (channelName: string) => {
+    const cursorPos = textareaRef.current?.selectionStart || 0;
+    const textBeforeCursor = message.slice(0, cursorPos);
+    const textAfterCursor = message.slice(cursorPos);
+    const lastHashIndex = textBeforeCursor.lastIndexOf('#');
+    
+    const newText = textBeforeCursor.slice(0, lastHashIndex) + `#${channelName} ` + textAfterCursor;
+    setMessage(newText);
+    setShowChannelAutocomplete(false);
+    setTimeout(() => textareaRef.current?.focus(), 0);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -188,8 +215,21 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
             ref={textareaRef}
             value={message}
             onChange={(e) => {
-              setMessage(e.target.value);
+              const value = e.target.value;
+              setMessage(value);
               adjustTextareaHeight();
+              
+              // Check for # trigger
+              const cursorPos = e.target.selectionStart;
+              const textBeforeCursor = value.slice(0, cursorPos);
+              const match = textBeforeCursor.match(/#([a-zA-Z0-9_-]*)$/);
+              
+              if (match) {
+                setChannelQuery(match[1]);
+                setShowChannelAutocomplete(true);
+              } else {
+                setShowChannelAutocomplete(false);
+              }
             }}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
@@ -198,6 +238,26 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
             style={{ minHeight: '40px' }}
             disabled={uploading}
           />
+          
+          {/* Channel Autocomplete */}
+          {showChannelAutocomplete && channels && (
+            <div className="absolute bottom-full left-0 mb-2 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto z-10 w-64">
+              {channels
+                .filter(c => c?.name?.toLowerCase().includes(channelQuery.toLowerCase()))
+                .slice(0, 5)
+                .map(channel => (
+                  <button
+                    key={channel?._id}
+                    type="button"
+                    onClick={() => insertChannel(channel?.name || '')}
+                    className="w-full text-left px-3 py-2 hover:bg-accent flex items-center gap-2"
+                  >
+                    <span className="text-muted-foreground">#</span>
+                    <span>{channel?.name}</span>
+                  </button>
+                ))}
+            </div>
+          )}
           
           {/* File Upload Button */}
           <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">

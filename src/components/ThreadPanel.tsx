@@ -100,6 +100,7 @@ export function ThreadPanel({ messageId, workspaceId, onClose }: ThreadPanelProp
       {/* Reply Composer */}
       <div className="border-t border-border">
         <MessageComposer 
+          workspaceId={workspaceId}
           onSendMessage={(text, attachments, linkPreviews) => void handleSendReply(text, attachments, linkPreviews)}
           placeholder="Reply to thread..."
         />

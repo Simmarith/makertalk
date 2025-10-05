@@ -12,9 +12,11 @@ interface MessageProps {
   onReply: (messageId: string) => void;
   onOpenThread?: (messageId: string) => void;
   isInThread?: boolean;
+  onChannelClick?: (channelId: string) => void;
 }
 
-export function Message({ message, workspaceId, showAvatar, onReply, onOpenThread, isInThread = false }: MessageProps) {
+export function Message({ message, workspaceId, showAvatar, onReply, onOpenThread, isInThread = false, onChannelClick }: MessageProps) {
+  const channels = useQuery(api.channels.list, { workspaceId });
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text);
   const [showActions, setShowActions] = useState(false);
@@ -84,13 +86,38 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
   const isVideo = (mimeType: string) => mimeType.startsWith('video/');
 
   const linkifyText = (text: string) => {
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const parts = text.split(urlRegex);
-    return parts.map((part, i) => 
-      urlRegex.test(part) ? (
-        <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{part}</a>
-      ) : part
-    );
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    const urlRegex = /https?:\/\/[^\s]+/g;
+    const channelRegex = /#([a-zA-Z0-9_-]+)/g;
+    const combinedRegex = /(https?:\/\/[^\s]+)|(#[a-zA-Z0-9_-]+)/g;
+    
+    let match;
+    while ((match = combinedRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+      
+      if (match[1]) {
+        parts.push(<a key={match.index} href={match[1]} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{match[1]}</a>);
+      } else if (match[2]) {
+        const channelName = match[2].slice(1);
+        const channel = channels?.find(c => c?.name === channelName);
+        if (channel && onChannelClick) {
+          parts.push(<button key={match.index} onClick={() => onChannelClick(channel._id)} className="text-primary hover:underline font-medium">{match[2]}</button>);
+        } else {
+          parts.push(match[2]);
+        }
+      }
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+    
+    return parts;
   };
 
   const commonEmojis = ['👍', '❤️', '😂', '😮', '😢', '😡', '👏', '🎉'];

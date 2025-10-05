@@ -12,9 +12,10 @@ interface MessageAreaProps {
   workspaceId: Id<"workspaces">;
   channelId: Id<"channels"> | null;
   dmId: Id<"directMessages"> | null;
+  onSelectChannel?: (channelId: string) => void;
 }
 
-export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) {
+export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel }: MessageAreaProps) {
   const channel = useQuery(api.channels.get, channelId ? { channelId } : "skip");
   const dm = useQuery(api.directMessages.get, dmId ? { dmId } : "skip");
   const currentUser = useQuery(api.auth.loggedInUser);
@@ -303,6 +304,7 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
             onOpenThread={handleOpenThread}
             onLoadMore={() => {}}
             hasMore={false}
+            onChannelClick={onSelectChannel}
           />
         </div>
 
@@ -327,7 +329,7 @@ export function MessageArea({ workspaceId, channelId, dmId }: MessageAreaProps) 
 
         {/* Message Composer */}
         <div className="border-t border-border flex-shrink-0">
-          <MessageComposer onSendMessage={(text, attachments, linkPreviews) => void handleSendMessage(text, attachments, linkPreviews)} />
+          <MessageComposer workspaceId={workspaceId} onSendMessage={(text, attachments, linkPreviews) => void handleSendMessage(text, attachments, linkPreviews)} />
         </div>
       </div>
 
