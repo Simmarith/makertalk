@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
+import { WorkspaceMemberManagement } from "./WorkspaceMemberManagement";
 
 interface SidebarProps {
   workspaceId: Id<"workspaces">;
@@ -52,6 +53,7 @@ export function Sidebar({
     currentUser && workspaceId ? { workspaceId, userId: currentUser._id } : "skip"
   );
   const [showStartDmModal, setShowStartDmModal] = useState(false);
+  const [showWorkspaceMemberManagement, setShowWorkspaceMemberManagement] = useState(false);
   const [memberSearchQuery, setMemberSearchQuery] = useState("");
   const [dmSearchQuery, setDmSearchQuery] = useState("");
   const [channelName, setChannelName] = useState("");
@@ -367,41 +369,55 @@ export function Sidebar({
 
       {/* Invite Section */}
       <div className="p-4 border-t border-border">
-        {!showInviteForm ? (
-          <button
-            onClick={() => setShowInviteForm(true)}
-            className="w-full py-2 px-3 text-sm border border-border rounded hover:bg-accent transition-colors"
-          >
-            Invite People
-          </button>
-        ) : (
-          <form onSubmit={handleGenerateInvite} className="space-y-2">
-            <input
-              type="email"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="Email address"
-              className="w-full px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:ring-1 focus:ring-primary"
-              required
-            />
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 py-1 px-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
-              >
-                {loading ? "Generating..." : "Generate Invite"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowInviteForm(false)}
-                className="px-2 py-1 text-sm border border-border rounded hover:bg-accent"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        )}
+        <div className="space-y-2">
+          {(workspaceMembership?.role === "owner" || workspaceMembership?.role === "admin") && (
+            <button
+              onClick={() => setShowWorkspaceMemberManagement(true)}
+              className="w-full py-2 px-3 text-sm border border-border rounded hover:bg-accent transition-colors flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+              Manage Members
+            </button>
+          )}
+          
+          {!showInviteForm ? (
+            <button
+              onClick={() => setShowInviteForm(true)}
+              className="w-full py-2 px-3 text-sm border border-border rounded hover:bg-accent transition-colors"
+            >
+              Invite People
+            </button>
+          ) : (
+            <form onSubmit={handleGenerateInvite} className="space-y-2">
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="Email address"
+                className="w-full px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:ring-1 focus:ring-primary"
+                required
+              />
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 py-1 px-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {loading ? "Generating..." : "Generate Invite"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowInviteForm(false)}
+                  className="px-2 py-1 text-sm border border-border rounded hover:bg-accent"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
     </div>
 
@@ -513,6 +529,14 @@ export function Sidebar({
         </div>
       </div>,
       document.body
+    )}
+    
+    {/* Workspace Member Management Modal */}
+    {showWorkspaceMemberManagement && (
+      <WorkspaceMemberManagement
+        workspaceId={workspaceId}
+        onClose={() => setShowWorkspaceMemberManagement(false)}
+      />
     )}
     </>
   );
