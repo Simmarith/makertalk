@@ -185,7 +185,7 @@ export const joinByInvite = mutation({
       .withIndex("by_token", (q) => q.eq("token", args.token))
       .unique();
 
-    if (!invite || invite.usedAt || invite.expiresAt < Date.now()) {
+    if (!invite || invite.expiresAt < Date.now()) {
       throw new Error("Invalid or expired invite");
     }
 
@@ -198,7 +198,7 @@ export const joinByInvite = mutation({
       .unique();
 
     if (existingMembership) {
-      throw new Error("Already a member of this workspace");
+      return invite.workspaceId;
     }
 
     // Add user to workspace
@@ -208,9 +208,6 @@ export const joinByInvite = mutation({
       role: "member",
       joinedAt: Date.now(),
     });
-
-    // Mark invite as used
-    await ctx.db.patch(invite._id, { usedAt: Date.now() });
 
     return invite.workspaceId;
   },
