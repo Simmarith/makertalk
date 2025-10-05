@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { MessageComposer } from "./MessageComposer";
 import { MessageList } from "./MessageList";
 import { ThreadPanel } from "./ThreadPanel";
+import { requestNotificationPermission, showNotification } from "../utils/notifications";
 
 interface MessageAreaProps {
   workspaceId: Id<"workspaces">;
@@ -55,6 +56,34 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel, onS
   const isChannelCreator = currentUser && channel?.createdBy === currentUser._id;
   const isOwnerOrAdmin = workspaceMembership?.role === "owner" || workspaceMembership?.role === "admin";
   const canEditChannel = isChannelCreator || isOwnerOrAdmin;
+  const prevMessagesRef = useRef<any[]>([]);
+
+  useEffect(() => {
+    void requestNotificationPermission();
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser || !messages?.page) return;
+
+    const newMessages = messages.page.filter(
+      (msg: any) => !prevMessagesRef.current.some((prev: any) => prev._id === msg._id)
+    );
+
+    newMessages.forEach((msg: any) => {
+      if (msg.senderId === currentUser._id) return;
+      if (!document.hidden) return;
+
+      const mentionRegex = new RegExp(`@${currentUser.email}`, 'i');
+      if (mentionRegex.test(msg.text)) {
+        showNotification('You were mentioned', {
+          body: `${msg.sender?.name || msg.sender?.email || 'Someone'}: ${msg.text.slice(0, 100)}`,
+          icon: msg.sender?.image,
+        });
+      }
+    });
+
+    prevMessagesRef.current = messages.page;
+  }, [messages?.page, currentUser]);
 
   const handleSendMessage = async (text: string, attachments?: any[], linkPreviews?: any[]) => {
     if (!text.trim() && (!attachments || attachments.length === 0)) return;
