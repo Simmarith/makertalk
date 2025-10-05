@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
@@ -11,7 +11,87 @@ export function Settings({ onClose }: SettingsProps) {
   const currentUser = useQuery(api.auth.loggedInUser);
   const [nickname, setNickname] = useState(currentUser?.name || "");
   const [avatarUrl, setAvatarUrl] = useState(currentUser?.image || "");
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const updateProfile = useMutation(api.users.updateProfile);
+  const generateAvatarUploadUrl = useMutation(api.users.generateAvatarUploadUrl);
+  const updateAvatar = useMutation(api.users.updateAvatar);
+
+  const resizeImage = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      img.onload = () => {
+        const maxSize = 256;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxSize) {
+            height *= maxSize / width;
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width *= maxSize / height;
+            height = maxSize;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('Failed to resize image'));
+        }, 'image/jpeg', 0.9);
+      };
+
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image must be less than 10MB');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const resizedBlob = await resizeImage(file);
+      const uploadUrl = await generateAvatarUploadUrl();
+      
+      const result = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'image/jpeg' },
+        body: resizedBlob,
+      });
+
+      if (!result.ok) throw new Error('Upload failed');
+
+      const { storageId } = await result.json();
+      const url = await updateAvatar({ storageId });
+      setAvatarUrl(url);
+      toast.success('Avatar uploaded');
+    } catch (error) {
+      toast.error('Failed to upload avatar');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -54,27 +134,38 @@ export function Settings({ onClose }: SettingsProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Avatar URL</label>
-            <input
-              type="text"
-              value={avatarUrl}
-              onChange={(e) => setAvatarUrl(e.target.value)}
-              placeholder="https://example.com/avatar.jpg"
-              className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:ring-2 focus:ring-primary focus:border-transparent"
-            />
-            {avatarUrl && (
-              <div className="mt-3 flex items-center gap-3">
-                <span className="text-sm text-muted-foreground">Preview:</span>
+            <label className="block text-sm font-medium mb-2">Avatar</label>
+            <div className="flex items-center gap-4">
+              {avatarUrl ? (
                 <img
                   src={avatarUrl}
-                  alt="Avatar preview"
-                  className="w-12 h-12 rounded-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                  }}
+                  alt="Avatar"
+                  className="w-16 h-16 rounded-full object-cover"
                 />
+              ) : (
+                <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-semibold text-xl">
+                  {currentUser?.name?.[0] || currentUser?.email?.[0] || '?'}
+                </div>
+              )}
+              <div className="flex-1">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="px-4 py-2 border border-border rounded-lg hover:bg-accent disabled:opacity-50"
+                >
+                  {uploading ? 'Uploading...' : 'Upload Image'}
+                </button>
+                <p className="text-xs text-muted-foreground mt-1">Max 10MB, will be resized to 256x256</p>
               </div>
-            )}
+            </div>
           </div>
 
           <div className="flex gap-2 pt-4">
