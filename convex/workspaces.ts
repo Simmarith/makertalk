@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { rateLimiter } from "./lib/rateLimit";
 
 export const create = mutation({
   args: {
@@ -12,6 +13,8 @@ export const create = mutation({
     if (!userId) {
       throw new Error("Not authenticated");
     }
+
+    await rateLimiter.limit(ctx, "createWorkspace", { key: userId });
 
     const workspaceId = await ctx.db.insert("workspaces", {
       name: args.name,
@@ -143,6 +146,8 @@ export const generateInvite = mutation({
     if (!userId) {
       throw new Error("Not authenticated");
     }
+
+    await rateLimiter.limit(ctx, "createInvite", { key: userId });
 
     // Check if user is admin or owner
     const membership = await ctx.db

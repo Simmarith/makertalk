@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { rateLimiter } from "./lib/rateLimit";
 
 export const create = mutation({
   args: {
@@ -14,6 +15,8 @@ export const create = mutation({
     if (!userId) {
       throw new Error("Not authenticated");
     }
+
+    await rateLimiter.limit(ctx, "createChannel", { key: userId });
 
     // Check if user is member of workspace
     const membership = await ctx.db

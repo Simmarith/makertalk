@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { paginationOptsValidator } from "convex/server";
+import { rateLimiter } from "./lib/rateLimit";
 
 export const send = mutation({
   args: {
@@ -29,6 +30,8 @@ export const send = mutation({
     if (!userId) {
       throw new Error("Not authenticated");
     }
+
+    await rateLimiter.limit(ctx, "sendMessage", { key: userId });
 
     // Validate workspace membership
     const workspaceMembership = await ctx.db
@@ -377,6 +380,8 @@ export const addReaction = mutation({
       throw new Error("Not authenticated");
     }
 
+    await rateLimiter.limit(ctx, "addReaction", { key: userId });
+
     // Check if reaction already exists
     const existingReaction = await ctx.db
       .query("reactions")
@@ -408,6 +413,9 @@ export const generateUploadUrl = mutation({
     if (!userId) {
       throw new Error("Not authenticated");
     }
+
+    await rateLimiter.limit(ctx, "uploadFile", { key: userId });
+
     return await ctx.storage.generateUploadUrl();
   },
 });
