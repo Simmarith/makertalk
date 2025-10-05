@@ -14,9 +14,10 @@ interface MessageProps {
   onOpenThread?: (messageId: string) => void;
   isInThread?: boolean;
   onChannelClick?: (channelId: string) => void;
+  onUserClick?: (userId: Id<"users">) => void;
 }
 
-export function Message({ message, workspaceId, showAvatar, onReply, onOpenThread, isInThread = false, onChannelClick }: MessageProps) {
+export function Message({ message, workspaceId, showAvatar, onReply, onOpenThread, isInThread = false, onChannelClick, onUserClick }: MessageProps) {
   const channels = useQuery(api.channels.list, { workspaceId });
   const workspaceMembers = useQuery(api.workspaces.getMembers, { workspaceId });
   const [isEditing, setIsEditing] = useState(false);
@@ -111,10 +112,10 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
       } else if (match[3]) {
         const email = match[3].slice(1);
         const member = workspaceMembers?.find(m => m?.email === email);
-        if (member) {
+        if (member && onUserClick) {
           parts.push(
             <UserTooltip key={match.index} name={member.name || member.email || "unknown-user"} email={member.email || "unknonwn-email"} image={member.image}>
-              <span className="text-primary hover:underline font-medium cursor-pointer">{match[3]}</span>
+              <span onClick={() => onUserClick(member._id)} className="text-primary hover:underline font-medium cursor-pointer">{match[3]}</span>
             </UserTooltip>
           );
         } else {

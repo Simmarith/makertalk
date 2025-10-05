@@ -10,9 +10,10 @@ interface MessageListProps {
   onLoadMore: (numItems?: number) => void;
   hasMore: boolean;
   onChannelClick?: (channelId: string) => void;
+  onUserClick?: (userId: Id<"users">) => void;
 }
 
-export function MessageList({ messages, workspaceId, onReply, onOpenThread, onLoadMore, hasMore, onChannelClick }: MessageListProps) {
+export function MessageList({ messages, workspaceId, onReply, onOpenThread, onLoadMore, hasMore, onChannelClick, onUserClick }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -81,6 +82,7 @@ export function MessageList({ messages, workspaceId, onReply, onOpenThread, onLo
             onReply={onReply}
             onOpenThread={onOpenThread}
             onChannelClick={onChannelClick}
+            onUserClick={onUserClick}
           />
         );
       })}

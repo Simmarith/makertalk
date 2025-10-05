@@ -95,6 +95,10 @@ export function ChatInterface({ workspaceId, onBackToWorkspaces }: ChatInterface
               setSelectedChannelId(channelId);
               setSelectedDmId(null);
             }}
+            onSelectDm={(dmId) => {
+              setSelectedDmId(dmId);
+              setSelectedChannelId(null);
+            }}
           />
         </div>
       </div>

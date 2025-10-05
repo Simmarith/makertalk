@@ -13,9 +13,10 @@ interface MessageAreaProps {
   channelId: Id<"channels"> | null;
   dmId: Id<"directMessages"> | null;
   onSelectChannel?: (channelId: string) => void;
+  onSelectDm?: (dmId: string) => void;
 }
 
-export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel }: MessageAreaProps) {
+export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel, onSelectDm }: MessageAreaProps) {
   const channel = useQuery(api.channels.get, channelId ? { channelId } : "skip");
   const dm = useQuery(api.directMessages.get, dmId ? { dmId } : "skip");
   const currentUser = useQuery(api.auth.loggedInUser);
@@ -39,6 +40,7 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel }: M
   const deleteChannel = useMutation(api.channels.deleteChannel);
   const updateChannel = useMutation(api.channels.update);
   const addParticipantToDm = useMutation(api.directMessages.addParticipant);
+  const createDm = useMutation(api.directMessages.create);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [threadMessageId, setThreadMessageId] = useState<string | null>(null);
   const [showThread, setShowThread] = useState(false);
@@ -131,6 +133,15 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel }: M
       toast.error(error.message || "Failed to add participant");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUserClick = async (userId: Id<"users">) => {
+    try {
+      const dmId = await createDm({ workspaceId, participants: [userId] });
+      onSelectDm?.(dmId);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to open DM");
     }
   };
 
@@ -305,6 +316,7 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel }: M
             onLoadMore={() => {}}
             hasMore={false}
             onChannelClick={onSelectChannel}
+            onUserClick={handleUserClick}
           />
         </div>
 
