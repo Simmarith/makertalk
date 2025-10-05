@@ -28,11 +28,13 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
   const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
   const fetchMetadata = useAction(api.linkPreviews.fetchMetadata);
   const channels = useQuery(api.channels.list, { workspaceId });
-  const channelMembers = useQuery(api.channels.getMembers, channelId ? { channelId } : "skip");
+  const channel = useQuery(api.channels.get, channelId ? { channelId } : "skip");
   const dm = useQuery(api.directMessages.get, dmId ? { dmId } : "skip");
   const workspaceMembers = useQuery(api.workspaces.getMembers, { workspaceId });
   
-  const availableUsers = channelId ? channelMembers : (dmId ? dm?.participants : workspaceMembers);
+  const availableUsers = channelId 
+    ? (channel?.isPrivate ? undefined : workspaceMembers)
+    : (dmId ? dm?.participants : workspaceMembers);
 
   const extractUrls = (text: string): string[] => {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
