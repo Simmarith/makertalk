@@ -139,7 +139,6 @@ export const getMembers = query({
 export const generateInvite = mutation({
   args: {
     workspaceId: v.id("workspaces"),
-    email: v.string(),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -166,7 +165,6 @@ export const generateInvite = mutation({
 
     await ctx.db.insert("invites", {
       workspaceId: args.workspaceId,
-      email: args.email,
       token,
       invitedBy: userId,
       expiresAt,

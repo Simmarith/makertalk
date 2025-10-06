@@ -59,7 +59,7 @@ export function Sidebar({
   const [channelName, setChannelName] = useState("");
   const [channelDescription, setChannelDescription] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
+
   const [loading, setLoading] = useState(false);
 
   const handleCreateChannel = async (e: React.FormEvent) => {
@@ -87,24 +87,14 @@ export function Sidebar({
     }
   };
 
-  const handleGenerateInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inviteEmail.trim()) return;
-
+  const handleGenerateInvite = async () => {
     setLoading(true);
     try {
-      const token = await generateInvite({
-        workspaceId,
-        email: inviteEmail.trim(),
-      });
-      
-      // Copy invite link to clipboard
+      const token = await generateInvite({ workspaceId });
       const inviteUrl = `${window.location.origin}?invite=${token}`;
       await navigator.clipboard.writeText(inviteUrl);
-      
       toast.success("Invite link copied to clipboard!");
       setShowInviteForm(false);
-      setInviteEmail("");
     } catch (error) {
       toast.error("Failed to generate invite");
     } finally {
@@ -390,32 +380,24 @@ export function Sidebar({
               Invite People
             </button>
           ) : (
-            <form onSubmit={void handleGenerateInvite} className="space-y-2">
-              <input
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="Email address"
-                className="w-full px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:ring-1 focus:ring-primary"
-                required
-              />
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Generate an invite link to share with others?</p>
               <div className="flex gap-2">
                 <button
-                  type="submit"
+                  onClick={() => void handleGenerateInvite()}
                   disabled={loading}
                   className="flex-1 py-1 px-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
                 >
                   {loading ? "Generating..." : "Generate Invite"}
                 </button>
                 <button
-                  type="button"
                   onClick={() => setShowInviteForm(false)}
                   className="px-2 py-1 text-sm border border-border rounded hover:bg-accent"
                 >
                   Cancel
                 </button>
               </div>
-            </form>
+            </div>
           )}
         </div>
       </div>

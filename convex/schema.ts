@@ -81,7 +81,6 @@ const applicationTables = {
 
   invites: defineTable({
     workspaceId: v.id("workspaces"),
-    email: v.string(),
     token: v.string(),
     invitedBy: v.id("users"),
     expiresAt: v.number(),
@@ -89,8 +88,7 @@ const applicationTables = {
     createdAt: v.number(),
   })
     .index("by_token", ["token"])
-    .index("by_workspace", ["workspaceId"])
-    .index("by_email", ["email"]),
+    .index("by_workspace", ["workspaceId"]),
 
   reactions: defineTable({
     messageId: v.id("messages"),
