@@ -9,8 +9,8 @@ interface MessageListProps {
   onOpenThread: (messageId: string) => void;
   onLoadMore: (numItems?: number) => void;
   hasMore: boolean;
-  onChannelClick?: (channelId: string) => void;
-  onUserClick?: (userId: Id<"users">) => void;
+  onChannelClick: (channelId: string) => void;
+  onUserClick: (userId: Id<"users">) => void;
 }
 
 export function MessageList({ messages, workspaceId, onReply, onOpenThread, onLoadMore, hasMore, onChannelClick, onUserClick }: MessageListProps) {

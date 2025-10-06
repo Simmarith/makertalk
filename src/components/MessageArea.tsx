@@ -13,8 +13,8 @@ interface MessageAreaProps {
   workspaceId: Id<"workspaces">;
   channelId: Id<"channels"> | null;
   dmId: Id<"directMessages"> | null;
-  onSelectChannel?: (channelId: string) => void;
-  onSelectDm?: (dmId: string) => void;
+  onSelectChannel: (channelId: string) => void;
+  onSelectDm: (dmId: string) => void;
 }
 
 export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel, onSelectDm }: MessageAreaProps) {
@@ -345,7 +345,7 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel, onS
             onLoadMore={() => {}}
             hasMore={false}
             onChannelClick={onSelectChannel}
-            onUserClick={void handleUserClick}
+            onUserClick={handleUserClick}
           />
         </div>
 
@@ -381,6 +381,8 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel, onS
             messageId={threadMessageId as Id<"messages">}
             workspaceId={workspaceId}
             onClose={handleCloseThread}
+            onChannelClick={onSelectChannel}
+            onUserClick={handleUserClick}
           />
         </div>
       )}

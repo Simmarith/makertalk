@@ -9,9 +9,11 @@ interface ThreadPanelProps {
   messageId: Id<"messages">;
   workspaceId: Id<"workspaces">;
   onClose: () => void;
+  onChannelClick: (channelId: string) => void;
+  onUserClick: (userId: Id<"users">) => void;
 }
 
-export function ThreadPanel({ messageId, workspaceId, onClose }: ThreadPanelProps) {
+export function ThreadPanel({ messageId, workspaceId, onClose, onChannelClick, onUserClick }: ThreadPanelProps) {
   const parentMessage = useQuery(api.messages.get, { messageId });
   const threadMessages = useQuery(
     api.messages.getThreadMessages,
@@ -82,7 +84,10 @@ export function ThreadPanel({ messageId, workspaceId, onClose }: ThreadPanelProp
                 workspaceId={workspaceId}
                 showAvatar={showAvatar}
                 onReply={() => {}}
+                onOpenThread={() => {}}
                 isInThread={true}
+                onChannelClick={onChannelClick}
+                onUserClick={onUserClick}
               />
             );
           })
