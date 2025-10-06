@@ -31,9 +31,10 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
   const channel = useQuery(api.channels.get, channelId ? { channelId } : "skip");
   const dm = useQuery(api.directMessages.get, dmId ? { dmId } : "skip");
   const workspaceMembers = useQuery(api.workspaces.getMembers, { workspaceId });
+  const channelMembers = useQuery(api.channels.getMembers, channelId ? { channelId } : "skip");
   
   const availableUsers = channelId 
-    ? (channel?.isPrivate ? undefined : workspaceMembers)
+    ? (channel?.isPrivate ? channelMembers : workspaceMembers)
     : (dmId ? dm?.participants : workspaceMembers);
 
   const extractUrls = (text: string): string[] => {
