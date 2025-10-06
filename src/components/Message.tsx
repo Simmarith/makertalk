@@ -91,7 +91,7 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
   const linkifyText = (text: string) => {
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
-    const combinedRegex = /(https?:\/\/[^\s]+)|(#[a-zA-Z0-9_-]+)|(@[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
+    const combinedRegex = /(https?:\/\/[^\s]+)|(#[a-zA-Z0-9_-]+)|(@[a-zA-Z0-9._+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/g;
     
     let match;
     while ((match = combinedRegex.exec(text)) !== null) {
