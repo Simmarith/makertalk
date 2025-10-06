@@ -45,6 +45,7 @@ const applicationTables = {
     workspaceId: v.id("workspaces"),
     participants: v.array(v.id("users")),
     createdAt: v.number(),
+    lastMessageAt: v.optional(v.number()),
   })
     .index("by_workspace", ["workspaceId"]),
 

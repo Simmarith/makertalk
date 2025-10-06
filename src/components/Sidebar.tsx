@@ -62,7 +62,10 @@ export function Sidebar({
   const [isPrivate, setIsPrivate] = useState(false);
   const [draggedChannel, setDraggedChannel] = useState<string | null>(null);
   const [dragOverChannel, setDragOverChannel] = useState<string | null>(null);
+  const [dmsCollapsed, setDmsCollapsed] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const sortedDms = [...dms].sort((a, b) => (b.lastMessageAt || b.createdAt) - (a.lastMessageAt || a.createdAt));
 
   const canReorder = workspaceMembership?.role === "owner" || workspaceMembership?.role === "admin";
 
@@ -379,9 +382,22 @@ export function Sidebar({
         {/* Direct Messages Section */}
         <div className="p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-              Direct Messages
-            </h3>
+            <button
+              onClick={() => setDmsCollapsed(!dmsCollapsed)}
+              className="flex items-center gap-1 hover:bg-accent rounded px-1 -mx-1 transition-colors"
+            >
+              <svg
+                className={`w-3 h-3 transition-transform ${dmsCollapsed ? '' : 'rotate-90'}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Direct Messages
+              </h3>
+            </button>
             <button
               onClick={() => setShowStartDmModal(true)}
               className="p-1 hover:bg-accent rounded text-muted-foreground"
@@ -392,8 +408,9 @@ export function Sidebar({
               </svg>
             </button>
           </div>
+          {!dmsCollapsed && (
           <div className="space-y-1">
-            {dms.map((dm) => {
+            {sortedDms.map((dm) => {
               const otherParticipants = dm.participants.filter((p: any) => p && currentUser && p._id !== currentUser._id);
               const displayName = otherParticipants.length > 0 
                 ? otherParticipants.map((p: any) => p.name || p.email).join(", ")
@@ -415,6 +432,7 @@ export function Sidebar({
               );
             })}
           </div>
+          )}
         </div>
       </div>
 

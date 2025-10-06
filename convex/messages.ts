@@ -84,7 +84,7 @@ export const send = mutation({
       })
     );
 
-    return await ctx.db.insert("messages", {
+    const messageId = await ctx.db.insert("messages", {
       workspaceId: args.workspaceId,
       channelId: args.channelId,
       dmId: args.dmId,
@@ -95,6 +95,15 @@ export const send = mutation({
       parentMessageId: args.parentMessageId,
       createdAt: Date.now(),
     });
+
+    // Update lastMessageAt for DM
+    if (args.dmId) {
+      await ctx.db.patch(args.dmId, {
+        lastMessageAt: Date.now(),
+      });
+    }
+
+    return messageId;
   },
 });
 
