@@ -22,6 +22,16 @@ export default function App() {
 function Content() {
   const loggedInUser = useQuery(api.auth.loggedInUser);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('invite');
+    if (token) {
+      setInviteToken(token);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   if (loggedInUser === undefined) {
     return (
@@ -35,7 +45,11 @@ function Content() {
     <>
       <Authenticated>
         {!selectedWorkspaceId ? (
-          <WorkspaceSelector onSelectWorkspace={setSelectedWorkspaceId} />
+          <WorkspaceSelector 
+            onSelectWorkspace={setSelectedWorkspaceId} 
+            inviteToken={inviteToken}
+            onInviteProcessed={() => setInviteToken(null)}
+          />
         ) : (
           <ChatInterface 
             workspaceId={selectedWorkspaceId} 

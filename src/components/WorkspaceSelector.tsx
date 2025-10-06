@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
@@ -7,9 +7,11 @@ import { ThemeToggle } from "./ThemeToggle";
 
 interface WorkspaceSelectorProps {
   onSelectWorkspace: (workspaceId: string) => void;
+  inviteToken?: string | null;
+  onInviteProcessed?: () => void;
 }
 
-export function WorkspaceSelector({ onSelectWorkspace }: WorkspaceSelectorProps) {
+export function WorkspaceSelector({ onSelectWorkspace, inviteToken, onInviteProcessed }: WorkspaceSelectorProps) {
   const workspaces = useQuery(api.workspaces.list) || [];
   const createWorkspace = useMutation(api.workspaces.create);
   const joinByInvite = useMutation(api.workspaces.joinByInvite);
@@ -18,8 +20,25 @@ export function WorkspaceSelector({ onSelectWorkspace }: WorkspaceSelectorProps)
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [workspaceName, setWorkspaceName] = useState("");
   const [workspaceDescription, setWorkspaceDescription] = useState("");
-  const [inviteToken, setInviteToken] = useState("");
+  const [inviteTokenInput, setInviteTokenInput] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (inviteToken) {
+      setLoading(true);
+      joinByInvite({ token: inviteToken })
+        .then((workspaceId) => {
+          toast.success("Joined workspace successfully!");
+          onSelectWorkspace(workspaceId);
+          onInviteProcessed?.();
+        })
+        .catch(() => {
+          toast.error("Failed to join workspace. Invalid invite link.");
+          onInviteProcessed?.();
+        })
+        .finally(() => setLoading(false));
+    }
+  }, [inviteToken, joinByInvite, onSelectWorkspace, onInviteProcessed]);
 
   const handleCreateWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,11 +61,11 @@ export function WorkspaceSelector({ onSelectWorkspace }: WorkspaceSelectorProps)
 
   const handleJoinWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteToken.trim()) return;
+    if (!inviteTokenInput.trim()) return;
 
     setLoading(true);
     try {
-      const workspaceId = await joinByInvite({ token: inviteToken.trim() });
+      const workspaceId = await joinByInvite({ token: inviteTokenInput.trim() });
       toast.success("Joined workspace successfully!");
       onSelectWorkspace(workspaceId);
     } catch (error) {
@@ -173,8 +192,8 @@ export function WorkspaceSelector({ onSelectWorkspace }: WorkspaceSelectorProps)
                   </label>
                   <input
                     type="text"
-                    value={inviteToken}
-                    onChange={(e) => setInviteToken(e.target.value)}
+                    value={inviteTokenInput}
+                    onChange={(e) => setInviteTokenInput(e.target.value)}
                     className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
                     placeholder="Paste your invite token here"
                     required
