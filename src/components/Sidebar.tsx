@@ -35,6 +35,7 @@ export function Sidebar({
   const removeMemberFromChannel = useMutation(api.channels.removeMember);
   const generateInvite = useMutation(api.workspaces.generateInvite);
   const createDm = useMutation(api.directMessages.create);
+  const reorderChannels = useMutation(api.channels.reorder);
 
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -59,13 +60,65 @@ export function Sidebar({
   const [channelName, setChannelName] = useState("");
   const [channelDescription, setChannelDescription] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
-
+  const [draggedChannel, setDraggedChannel] = useState<string | null>(null);
+  const [dragOverChannel, setDragOverChannel] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const canReorder = workspaceMembership?.role === "owner" || workspaceMembership?.role === "admin";
+
+  const handleDragStart = (e: React.DragEvent, channelId: string) => {
+    if (!canReorder) return;
+    setDraggedChannel(channelId);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, channelId: string) => {
+    if (!canReorder) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverChannel(channelId);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverChannel(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetChannelId: string) => {
+    if (!canReorder || !draggedChannel) return;
+    e.preventDefault();
+
+    if (draggedChannel === targetChannelId) {
+      setDraggedChannel(null);
+      setDragOverChannel(null);
+      return;
+    }
+
+    const channelList = channels.filter((c): c is NonNullable<typeof c> => Boolean(c));
+    const draggedIndex = channelList.findIndex(c => c._id === draggedChannel);
+    const targetIndex = channelList.findIndex(c => c._id === targetChannelId);
+
+    const reordered = [...channelList];
+    const [removed] = reordered.splice(draggedIndex, 1);
+    reordered.splice(targetIndex, 0, removed);
+
+    const channelOrders = reordered.map((channel, index) => ({
+      channelId: channel._id as Id<"channels">,
+      order: index,
+    }));
+
+    try {
+      await reorderChannels({ workspaceId, channelOrders });
+    } catch (error) {
+      toast.error("Failed to reorder channels");
+    }
+
+    setDraggedChannel(null);
+    setDragOverChannel(null);
+  };
 
   const handleCreateChannel = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!channelName.trim()) return;
-
     setLoading(true);
     try {
       const channelId = await createChannel({
@@ -216,7 +269,7 @@ export function Sidebar({
           </div>
 
           {showCreateChannel && (
-            <form onSubmit={void handleCreateChannel} className="mb-4 p-3 border border-border rounded-lg bg-background">
+            <form onSubmit={handleCreateChannel} className="mb-4 p-3 border border-border rounded-lg bg-background">
               <div className="space-y-3">
                 <input
                   type="text"
@@ -264,12 +317,20 @@ export function Sidebar({
 
           <div className="space-y-1">
             {channels.filter((channel): channel is NonNullable<typeof channel> => Boolean(channel)).map((channel) => (
-              <div key={channel._id} className="flex items-center gap-1 group">
+              <div 
+                key={channel._id} 
+                className={`flex items-center gap-1 group ${dragOverChannel === channel._id && draggedChannel !== channel._id ? 'border-t-2 border-primary' : ''}`}
+                draggable={canReorder}
+                onDragStart={(e) => handleDragStart(e, channel._id)}
+                onDragOver={(e) => handleDragOver(e, channel._id)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => void handleDrop(e, channel._id)}
+              >
                 <button
                   onClick={() => onSelectChannel(channel._id)}
                   className={`flex-1 text-left px-2 py-1 rounded text-sm hover:bg-accent transition-colors ${
                     selectedChannelId === channel._id ? 'bg-accent' : ''
-                  }`}
+                  } ${canReorder ? 'cursor-move' : ''}`}
                 >
                   <span className="flex items-center gap-2">
                     {channel.isPrivate ? (

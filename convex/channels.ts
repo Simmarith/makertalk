@@ -94,7 +94,8 @@ export const list = query({
       })
     );
 
-    return [...publicChannels, ...privateChannels.filter(Boolean)];
+    const allChannels = [...publicChannels, ...privateChannels.filter((c): c is NonNullable<typeof c> => c !== null)];
+    return allChannels.sort((a, b) => (a.order ?? a._creationTime) - (b.order ?? b._creationTime));
   },
 });
 
@@ -436,5 +437,33 @@ export const join = mutation({
       userId,
       joinedAt: Date.now(),
     });
+  },
+});
+
+export const reorder = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    channelOrders: v.array(v.object({ channelId: v.id("channels"), order: v.number() })),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    const membership = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_workspace_user", (q) => 
+        q.eq("workspaceId", args.workspaceId).eq("userId", userId)
+      )
+      .unique();
+
+    if (!membership || (membership.role !== "owner" && membership.role !== "admin")) {
+      throw new Error("Only owners and admins can reorder channels");
+    }
+
+    for (const { channelId, order } of args.channelOrders) {
+      await ctx.db.patch(channelId, { order });
+    }
   },
 });

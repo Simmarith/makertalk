@@ -27,6 +27,7 @@ const applicationTables = {
     isPrivate: v.boolean(),
     createdBy: v.id("users"),
     createdAt: v.number(),
+    order: v.optional(v.number()),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_private", ["workspaceId", "isPrivate"]),

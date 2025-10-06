@@ -81,7 +81,7 @@ export const get = query({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
-      throw new Error("Not authenticated");
+      return null;
     }
 
     // Check if user is member
@@ -93,7 +93,7 @@ export const get = query({
       .unique();
 
     if (!membership) {
-      throw new Error("Not a member of this workspace");
+      return null;
     }
 
     const workspace = await ctx.db.get(args.workspaceId);
