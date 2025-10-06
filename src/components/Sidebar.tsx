@@ -226,7 +226,7 @@ export function Sidebar({
           </div>
 
           {showCreateChannel && (
-            <form onSubmit={handleCreateChannel} className="mb-4 p-3 border border-border rounded-lg bg-background">
+            <form onSubmit={void handleCreateChannel} className="mb-4 p-3 border border-border rounded-lg bg-background">
               <div className="space-y-3">
                 <input
                   type="text"
@@ -309,7 +309,7 @@ export function Sidebar({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleLeaveChannel(channel._id);
+                        void handleLeaveChannel(channel._id);
                       }}
                       className="opacity-0 group-hover:opacity-100 p-1 hover:bg-accent rounded text-muted-foreground hover:text-red-500"
                       title="Leave channel"
@@ -390,7 +390,7 @@ export function Sidebar({
               Invite People
             </button>
           ) : (
-            <form onSubmit={handleGenerateInvite} className="space-y-2">
+            <form onSubmit={void handleGenerateInvite} className="space-y-2">
               <input
                 type="email"
                 value={inviteEmail}
@@ -444,7 +444,7 @@ export function Sidebar({
               .map((member: any) => (
                 <button
                   key={member._id}
-                  onClick={() => handleStartDm(member._id)}
+                  onClick={() => void handleStartDm(member._id)}
                   disabled={loading}
                   className="w-full text-left px-3 py-2 rounded hover:bg-accent transition-colors disabled:opacity-50"
                 >
@@ -494,7 +494,7 @@ export function Sidebar({
                 return (
                   <button
                     key={member._id}
-                    onClick={() => isMember ? handleRemoveMember(member._id) : handleAddMember(member._id)}
+                    onClick={() => isMember ? void handleRemoveMember(member._id) : void handleAddMember(member._id)}
                     disabled={loading || (isMember && !canManage)}
                     className="w-full text-left px-3 py-2 rounded hover:bg-accent transition-colors disabled:opacity-50 flex items-center justify-between group"
                   >

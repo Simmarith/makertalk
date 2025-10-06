@@ -345,7 +345,7 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel, onS
             onLoadMore={() => {}}
             hasMore={false}
             onChannelClick={onSelectChannel}
-            onUserClick={handleUserClick}
+            onUserClick={void handleUserClick}
           />
         </div>
 

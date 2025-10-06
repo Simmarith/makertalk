@@ -93,7 +93,7 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
         urls.map(url => fetchMetadata({ url }).catch(() => null))
       ).then(results => results.filter(Boolean));
 
-      await onSendMessage(message, uploadedAttachments, linkPreviews);
+      onSendMessage(message, uploadedAttachments, linkPreviews);
       setMessage("");
       setAttachments([]);
       if (fileInputRef.current) {
@@ -128,7 +128,6 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
     e.preventDefault();
     setIsDragOver(false);
     handleFileSelect(e.dataTransfer.files);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
