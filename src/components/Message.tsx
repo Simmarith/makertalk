@@ -37,9 +37,16 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
   const editMessage = useMutation(api.messages.edit);
   const deleteMessage = useMutation(api.messages.remove);
   const addReaction = useMutation(api.messages.addReaction);
+  const pinMessage = useMutation(api.messages.pin);
+  const unpinMessage = useMutation(api.messages.unpin);
+  const channel = useQuery(
+    api.channels.get,
+    message.channelId ? { channelId: message.channelId } : "skip"
+  );
   
   const isOwnMessage = currentUser?._id === message.senderId;
   const canDelete = isOwnMessage || workspaceMembership?.role === "owner" || workspaceMembership?.role === "admin";
+  const canPin = workspaceMembership?.role === "owner" || workspaceMembership?.role === "admin" || (channel && channel.createdBy === currentUser?._id);
 
   const handleEdit = async () => {
     if (!editText.trim()) return;
@@ -74,6 +81,20 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
       setShowEmojiPicker(false);
     } catch (error) {
       toast.error("Failed to add reaction");
+    }
+  };
+
+  const handlePin = async () => {
+    try {
+      if (message.pinnedAt) {
+        await unpinMessage({ messageId: message._id });
+        toast.success("Message unpinned");
+      } else {
+        await pinMessage({ messageId: message._id });
+        toast.success("Message pinned");
+      }
+    } catch (error) {
+      toast.error("Failed to pin message");
     }
   };
 
@@ -137,7 +158,7 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
 
   return (
     <div
-      className="group hover:bg-accent/50 px-2 md:px-4 py-2 rounded-lg transition-colors relative"
+      className={`group hover:bg-accent/50 px-2 md:px-4 py-2 rounded-lg transition-colors relative ${message.pinnedAt ? 'bg-yellow-50 dark:bg-yellow-950/20' : ''}`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
@@ -362,6 +383,18 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </button>
+            )}
+
+            {canPin && (
+              <button
+                onClick={handlePin}
+                className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground"
+                title={message.pinnedAt ? "Unpin message" : "Pin message"}
+              >
+                <svg className="w-4 h-4" fill={message.pinnedAt ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                 </svg>
               </button>
             )}

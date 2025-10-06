@@ -71,6 +71,8 @@ const applicationTables = {
     parentMessageId: v.optional(v.id("messages")),
     editedAt: v.optional(v.number()),
     deletedAt: v.optional(v.number()),
+    pinnedAt: v.optional(v.number()),
+    pinnedBy: v.optional(v.id("users")),
     createdAt: v.number(),
   })
     .index("by_channel", ["channelId"])

@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { MessageComposer } from "./MessageComposer";
 import { MessageList } from "./MessageList";
 import { ThreadPanel } from "./ThreadPanel";
+import { PinnedMessages } from "./PinnedMessages";
 import { requestNotificationPermission, showNotification } from "../utils/notifications";
 
 interface MessageAreaProps {
@@ -334,6 +335,9 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel, onS
             )}
           </div>
         </div>
+
+        {/* Pinned Messages */}
+        <PinnedMessages channelId={channelId} dmId={dmId} />
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden">

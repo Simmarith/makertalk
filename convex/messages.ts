@@ -419,3 +419,140 @@ export const generateUploadUrl = mutation({
     return await ctx.storage.generateUploadUrl();
   },
 });
+
+export const pin = mutation({
+  args: { messageId: v.id("messages") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    const message = await ctx.db.get(args.messageId);
+    if (!message) {
+      throw new Error("Message not found");
+    }
+
+    const workspaceMembership = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_workspace_user", (q) => 
+        q.eq("workspaceId", message.workspaceId).eq("userId", userId)
+      )
+      .unique();
+
+    const isOwnerOrAdmin = workspaceMembership?.role === "owner" || workspaceMembership?.role === "admin";
+    
+    let isChannelCreator = false;
+    if (message.channelId) {
+      const channel = await ctx.db.get(message.channelId);
+      isChannelCreator = channel?.createdBy === userId;
+    }
+
+    if (!isOwnerOrAdmin && !isChannelCreator) {
+      throw new Error("Only admins, owners, and channel creators can pin messages");
+    }
+
+    await ctx.db.patch(args.messageId, {
+      pinnedAt: Date.now(),
+      pinnedBy: userId,
+    });
+  },
+});
+
+export const unpin = mutation({
+  args: { messageId: v.id("messages") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    const message = await ctx.db.get(args.messageId);
+    if (!message) {
+      throw new Error("Message not found");
+    }
+
+    const workspaceMembership = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_workspace_user", (q) => 
+        q.eq("workspaceId", message.workspaceId).eq("userId", userId)
+      )
+      .unique();
+
+    const isOwnerOrAdmin = workspaceMembership?.role === "owner" || workspaceMembership?.role === "admin";
+    
+    let isChannelCreator = false;
+    if (message.channelId) {
+      const channel = await ctx.db.get(message.channelId);
+      isChannelCreator = channel?.createdBy === userId;
+    }
+
+    if (!isOwnerOrAdmin && !isChannelCreator) {
+      throw new Error("Only admins, owners, and channel creators can unpin messages");
+    }
+
+    await ctx.db.patch(args.messageId, {
+      pinnedAt: undefined,
+      pinnedBy: undefined,
+    });
+  },
+});
+
+export const getPinned = query({
+  args: {
+    channelId: v.optional(v.id("channels")),
+    dmId: v.optional(v.id("directMessages")),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return [];
+    }
+
+    let messages;
+    if (args.channelId) {
+      messages = await ctx.db
+        .query("messages")
+        .withIndex("by_channel", (q) => q.eq("channelId", args.channelId))
+        .filter((q) => q.and(
+          q.neq(q.field("pinnedAt"), undefined),
+          q.eq(q.field("deletedAt"), undefined)
+        ))
+        .collect();
+    } else if (args.dmId) {
+      messages = await ctx.db
+        .query("messages")
+        .withIndex("by_dm", (q) => q.eq("dmId", args.dmId))
+        .filter((q) => q.and(
+          q.neq(q.field("pinnedAt"), undefined),
+          q.eq(q.field("deletedAt"), undefined)
+        ))
+        .collect();
+    } else {
+      return [];
+    }
+
+    const messagesWithSenders = await Promise.all(
+      messages.map(async (message) => {
+        const sender = await ctx.db.get(message.senderId);
+        const pinnedByUser = message.pinnedBy ? await ctx.db.get(message.pinnedBy) : null;
+        return {
+          ...message,
+          sender: sender ? { 
+            _id: sender._id, 
+            name: sender.name, 
+            email: sender.email,
+            image: sender.image,
+          } : null,
+          pinnedByUser: pinnedByUser ? {
+            _id: pinnedByUser._id,
+            name: pinnedByUser.name,
+            email: pinnedByUser.email,
+          } : null,
+        };
+      })
+    );
+
+    return messagesWithSenders.sort((a, b) => (b.pinnedAt || 0) - (a.pinnedAt || 0));
+  },
+});
