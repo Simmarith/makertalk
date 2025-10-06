@@ -2,6 +2,8 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useState } from "react";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface PinnedMessagesProps {
   channelId?: Id<"channels"> | null;
@@ -68,9 +70,9 @@ export function PinnedMessages({ channelId, dmId }: PinnedMessagesProps) {
                       {new Date(message._creationTime).toLocaleDateString()}
                     </span>
                   </div>
-                  <p className="text-sm text-foreground whitespace-pre-wrap break-words line-clamp-3">
-                    {message.text}
-                  </p>
+                  <div className="text-sm text-foreground break-words line-clamp-3 prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+                  </div>
                 </div>
               </div>
             </div>

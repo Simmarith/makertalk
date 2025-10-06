@@ -5,6 +5,8 @@ import { Id } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { LinkPreview } from "./LinkPreview";
 import { UserTooltip } from "./UserTooltip";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface MessageProps {
   message: any;
@@ -220,8 +222,8 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
             </div>
           ) : (
             <>
-              <div className="text-foreground whitespace-pre-wrap break-words text-sm md:text-base">
-                {linkifyText(message.text)}
+              <div className="text-foreground break-words text-sm md:text-base prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
               </div>
               
               {/* Link Previews */}
