@@ -21,6 +21,7 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
   const [showUserAutocomplete, setShowUserAutocomplete] = useState(false);
   const [channelQuery, setChannelQuery] = useState("");
   const [userQuery, setUserQuery] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -94,7 +95,31 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
         urls.map(url => fetchMetadata({ url }).catch(() => null))
       ).then(results => results.filter(Boolean));
 
-      onSendMessage(message, uploadedAttachments, linkPreviews);
+      // Convert display names back to IDs before sending
+      let processedMessage = message;
+      
+      // Replace #channel-name with <#channelId>
+      if (channels) {
+        channels.forEach(channel => {
+          if (channel?.name) {
+            const regex = new RegExp(`#${channel.name}(?=\\s|$)`, 'g');
+            processedMessage = processedMessage.replace(regex, `<#${channel._id}>`);
+          }
+        });
+      }
+      
+      // Replace @username with <@userId>
+      if (availableUsers) {
+        availableUsers.forEach((user: any) => {
+          const displayName = user?.name || user?.email;
+          if (displayName) {
+            const regex = new RegExp(`@${displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$)`, 'g');
+            processedMessage = processedMessage.replace(regex, `<@${user._id}>`);
+          }
+        });
+      }
+      
+      onSendMessage(processedMessage, uploadedAttachments, linkPreviews);
       setMessage("");
       setAttachments([]);
       if (fileInputRef.current) {
@@ -146,42 +171,81 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if ((showChannelAutocomplete || showUserAutocomplete) && (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter")) {
-      e.preventDefault();
+    if (showChannelAutocomplete) {
+      const filteredChannels = channels?.filter(c => c?.name?.toLowerCase().includes(channelQuery.toLowerCase())).slice(0, 5) || [];
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev + 1) % filteredChannels.length);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev - 1 + filteredChannels.length) % filteredChannels.length);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const selected = filteredChannels[selectedIndex];
+        if (selected) insertChannel(selected._id, selected.name || '');
+      } else if (e.key === "Escape") {
+        setShowChannelAutocomplete(false);
+      }
       return;
     }
+    
+    if (showUserAutocomplete) {
+      const filteredUsers = availableUsers?.filter((m: any) => {
+        const query = userQuery.toLowerCase();
+        return (m?.name?.toLowerCase().includes(query) || m?.email?.toLowerCase().includes(query));
+      }).slice(0, 5) || [];
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev + 1) % filteredUsers.length);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev - 1 + filteredUsers.length) % filteredUsers.length);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const selected = filteredUsers[selectedIndex];
+        if (selected) insertUser(selected._id, selected.name || selected.email || '');
+      } else if (e.key === "Escape") {
+        setShowUserAutocomplete(false);
+      }
+      return;
+    }
+    
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void handleSubmit(e as any);
     }
-    if (e.key === "Escape") {
-      setShowChannelAutocomplete(false);
-      setShowUserAutocomplete(false);
-    }
   };
 
-  const insertChannel = (channelName: string) => {
+  const insertChannel = (channelId: string, channelName: string) => {
     const cursorPos = textareaRef.current?.selectionStart || 0;
     const textBeforeCursor = message.slice(0, cursorPos);
     const textAfterCursor = message.slice(cursorPos);
     const lastHashIndex = textBeforeCursor.lastIndexOf('#');
     
     const newText = textBeforeCursor.slice(0, lastHashIndex) + `#${channelName} ` + textAfterCursor;
+    const newCursorPos = lastHashIndex + channelName.length + 2;
     setMessage(newText);
     setShowChannelAutocomplete(false);
-    setTimeout(() => textareaRef.current?.focus(), 0);
+    setTimeout(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
   };
 
-  const insertUser = (userEmail: string) => {
+  const insertUser = (userId: string, userName: string) => {
     const cursorPos = textareaRef.current?.selectionStart || 0;
     const textBeforeCursor = message.slice(0, cursorPos);
     const textAfterCursor = message.slice(cursorPos);
     const lastAtIndex = textBeforeCursor.lastIndexOf('@');
     
-    const newText = textBeforeCursor.slice(0, lastAtIndex) + `@${userEmail} ` + textAfterCursor;
+    const newText = textBeforeCursor.slice(0, lastAtIndex) + `@${userName} ` + textAfterCursor;
+    const newCursorPos = lastAtIndex + userName.length + 2;
     setMessage(newText);
     setShowUserAutocomplete(false);
-    setTimeout(() => textareaRef.current?.focus(), 0);
+    setTimeout(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -253,10 +317,12 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
                 setChannelQuery(channelMatch[1]);
                 setShowChannelAutocomplete(true);
                 setShowUserAutocomplete(false);
+                setSelectedIndex(0);
               } else if (userMatch) {
                 setUserQuery(userMatch[1]);
                 setShowUserAutocomplete(true);
                 setShowChannelAutocomplete(false);
+                setSelectedIndex(0);
               } else {
                 setShowChannelAutocomplete(false);
                 setShowUserAutocomplete(false);
@@ -276,12 +342,12 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
               {channels
                 .filter(c => c?.name?.toLowerCase().includes(channelQuery.toLowerCase()))
                 .slice(0, 5)
-                .map(channel => (
+                .map((channel, index) => (
                   <button
                     key={channel?._id}
                     type="button"
-                    onClick={() => insertChannel(channel?.name || '')}
-                    className="w-full text-left px-3 py-2 hover:bg-accent flex items-center gap-2"
+                    onClick={() => insertChannel(channel?._id || '', channel?.name || '')}
+                    className={`w-full text-left px-3 py-2 flex items-center gap-2 ${index === selectedIndex ? 'bg-accent' : 'hover:bg-accent'}`}
                   >
                     <span className="text-muted-foreground">#</span>
                     <span>{channel?.name}</span>
@@ -299,12 +365,12 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
                   return (m?.name?.toLowerCase().includes(query) || m?.email?.toLowerCase().includes(query));
                 })
                 .slice(0, 5)
-                .map((member: any) => (
+                .map((member: any, index: number) => (
                   <button
                     key={member._id}
                     type="button"
-                    onClick={() => insertUser(member?.email || '')}
-                    className="w-full text-left px-3 py-2 hover:bg-accent flex items-center gap-2"
+                    onClick={() => insertUser(member?._id || '', member?.name || member?.email || '')}
+                    className={`w-full text-left px-3 py-2 flex items-center gap-2 ${index === selectedIndex ? 'bg-accent' : 'hover:bg-accent'}`}
                   >
                     <span className="text-muted-foreground">@</span>
                     <div className="flex-1 min-w-0">

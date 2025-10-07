@@ -7,6 +7,7 @@ import { LinkPreview } from "./LinkPreview";
 import { UserTooltip } from "./UserTooltip";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import type { Components } from 'react-markdown';
 
 interface MessageProps {
   message: any;
@@ -223,7 +224,85 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
           ) : (
             <>
               <div className="text-foreground break-words text-sm md:text-base prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    p: ({ children }) => {
+                      const processText = (node: any): any => {
+                        if (typeof node === 'string') {
+                          const parts: any[] = [];
+                          const regex = /(<#[a-zA-Z0-9_-]+>)|(<@[a-zA-Z0-9_-]+>)/g;
+                          let lastIndex = 0;
+                          let match;
+                          
+                          while ((match = regex.exec(node)) !== null) {
+                            if (match.index > lastIndex) {
+                              parts.push(node.substring(lastIndex, match.index));
+                            }
+                            
+                            if (match[1]) {
+                              const channelId = match[1].slice(2, -1);
+                              const channel = channels?.find(c => c?._id === channelId);
+                              if (channel) {
+                                parts.push(
+                                  <button
+                                    key={match.index}
+                                    onClick={() => onChannelClick(channel._id)}
+                                    className="text-primary hover:underline font-medium"
+                                  >
+                                    #{channel.name}
+                                  </button>
+                                );
+                              } else {
+                                parts.push('#unknown-channel');
+                              }
+                            } else if (match[2]) {
+                              const userId = match[2].slice(2, -1);
+                              const member = workspaceMembers?.find(m => m?._id === userId);
+                              if (member) {
+                                parts.push(
+                                  <UserTooltip
+                                    key={match.index}
+                                    name={member.name || member.email || "unknown-user"}
+                                    email={member.email || "unknown-email"}
+                                    image={member.image}
+                                  >
+                                    <span
+                                      onClick={() => onUserClick(member._id)}
+                                      className="text-primary hover:underline font-medium cursor-pointer"
+                                    >
+                                      @{member.name || member.email}
+                                    </span>
+                                  </UserTooltip>
+                                );
+                              } else {
+                                parts.push('@unknown-user');
+                              }
+                            }
+                            
+                            lastIndex = match.index + match[0].length;
+                          }
+                          
+                          if (lastIndex < node.length) {
+                            parts.push(node.substring(lastIndex));
+                          }
+                          
+                          return parts.length > 0 ? parts : node;
+                        }
+                        
+                        if (Array.isArray(node)) {
+                          return node.map(processText);
+                        }
+                        
+                        return node;
+                      };
+                      
+                      return <p>{processText(children)}</p>;
+                    },
+                  } as Components}
+                >
+                  {message.text}
+                </ReactMarkdown>
               </div>
               
               {/* Link Previews */}

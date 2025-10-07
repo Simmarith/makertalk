@@ -4,6 +4,7 @@ import { Id } from "../../convex/_generated/dataModel";
 import { useState } from "react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import type { Components } from 'react-markdown';
 
 interface PinnedMessagesProps {
   channelId?: Id<"channels"> | null;
@@ -71,7 +72,14 @@ export function PinnedMessages({ channelId, dmId }: PinnedMessagesProps) {
                     </span>
                   </div>
                   <div className="text-sm text-foreground break-words line-clamp-3 prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        p: ({ children }) => <p className="line-clamp-3">{children}</p>,
+                      } as Components}
+                    >
+                      {message.text}
+                    </ReactMarkdown>
                   </div>
                 </div>
               </div>
