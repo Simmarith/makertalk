@@ -67,9 +67,44 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
           attachments.map(async (file) => {
             const uploadUrl = await generateUploadUrl();
             
+            // Handle 3D model files (STL, 3MF) and other files with proper MIME types
+            let contentType = file.type;
+            if (!contentType || contentType === 'application/octet-stream') {
+              // Detect content type based on file extension
+              const extension = file.name.toLowerCase().split('.').pop();
+              switch (extension) {
+                case 'stl':
+                  contentType = 'model/stl';
+                  break;
+                case '3mf':
+                  contentType = 'model/3mf';
+                  break;
+                case 'pdf':
+                  contentType = 'application/pdf';
+                  break;
+                case 'txt':
+                  contentType = 'text/plain';
+                  break;
+                case 'doc':
+                  contentType = 'application/msword';
+                  break;
+                case 'docx':
+                  contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                  break;
+                case 'zip':
+                  contentType = 'application/zip';
+                  break;
+                case 'rar':
+                  contentType = 'application/vnd.rar';
+                  break;
+                default:
+                  contentType = 'application/octet-stream';
+              }
+            }
+            
             const result = await fetch(uploadUrl, {
               method: "POST",
-              headers: { "Content-Type": file.type },
+              headers: { "Content-Type": contentType },
               body: file,
             });
 
@@ -82,7 +117,7 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
             return {
               storageId,
               filename: file.name,
-              mimeType: file.type,
+              mimeType: contentType,
               size: file.size,
             };
           })
@@ -419,7 +454,7 @@ export function MessageComposer({ onSendMessage, placeholder = "Type a message..
         multiple
         onChange={(e) => handleFileSelect(e.target.files)}
         className="hidden"
-        accept="image/*,video/*,application/pdf,.doc,.docx,.txt,.zip,.rar"
+        accept="image/*,video/*,application/pdf,.doc,.docx,.txt,.zip,.rar,.stl,.3mf"
       />
     </form>
   );

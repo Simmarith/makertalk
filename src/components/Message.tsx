@@ -5,6 +5,7 @@ import { Id } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { LinkPreview } from "./LinkPreview";
 import { UserTooltip } from "./UserTooltip";
+import ModelViewer from "./STLViewer";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
@@ -61,7 +62,7 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
       });
       setIsEditing(false);
       toast.success("Message updated");
-    } catch (error) {
+    } catch {
       toast.error("Failed to update message");
     }
   };
@@ -70,7 +71,7 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
     try {
       await deleteMessage({ messageId: message._id });
       toast.success("Message deleted");
-    } catch (error) {
+    } catch {
       toast.error("Failed to delete message");
     }
   };
@@ -82,7 +83,7 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
         emoji,
       });
       setShowEmojiPicker(false);
-    } catch (error) {
+    } catch {
       toast.error("Failed to add reaction");
     }
   };
@@ -96,7 +97,7 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
         await pinMessage({ messageId: message._id });
         toast.success("Message pinned");
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to pin message");
     }
   };
@@ -111,51 +112,13 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
   const isImage = (mimeType: string) => mimeType.startsWith('image/');
   const isPdf = (mimeType: string) => mimeType === 'application/pdf';
   const isVideo = (mimeType: string) => mimeType.startsWith('video/');
-
-  const linkifyText = (text: string) => {
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-    const combinedRegex = /(https?:\/\/[^\s]+)|(#[a-zA-Z0-9_-]+)|(@[a-zA-Z0-9._+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/g;
-    
-    let match;
-    while ((match = combinedRegex.exec(text)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(text.substring(lastIndex, match.index));
-      }
-      
-      if (match[1]) {
-        parts.push(<a key={match.index} href={match[1]} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{match[1]}</a>);
-      } else if (match[2]) {
-        const channelName = match[2].slice(1);
-        const channel = channels?.find(c => c?.name === channelName);
-        if (channel && onChannelClick) {
-          parts.push(<button key={match.index} onClick={() => onChannelClick(channel._id)} className="text-primary hover:underline font-medium">{match[2]}</button>);
-        } else {
-          parts.push(match[2]);
-        }
-      } else if (match[3]) {
-        const email = match[3].slice(1);
-        const member = workspaceMembers?.find(m => m?.email === email);
-        if (member) {
-          parts.push(
-            <UserTooltip key={match.index} name={member.name || member.email || "unknown-user"} email={member.email || "unknonwn-email"} image={member.image}>
-              <span onClick={() => onUserClick(member._id)} className="text-primary hover:underline font-medium cursor-pointer">{match[3]}</span>
-            </UserTooltip>
-          );
-        } else {
-          parts.push(match[3]);
-        }
-      }
-      
-      lastIndex = match.index + match[0].length;
-    }
-    
-    if (lastIndex < text.length) {
-      parts.push(text.substring(lastIndex));
-    }
-    
-    return parts;
-  };
+  const is3DModel = (mimeType: string, filename: string) => 
+    mimeType === 'application/sla' || 
+    mimeType === 'application/vnd.ms-pki.stl' || 
+    mimeType === 'model/stl' ||
+    mimeType === 'model/3mf' ||
+    filename.toLowerCase().endsWith('.stl') ||
+    filename.toLowerCase().endsWith('.3mf');
 
   const commonEmojis = ['👍', '❤️', '😂', '😮', '😢', '😡', '👏', '🎉'];
 
@@ -205,7 +168,7 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
               />
               <div className="flex gap-2">
                 <button
-                  onClick={handleEdit}
+                  onClick={() => void handleEdit()}
                   className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90"
                 >
                   Save
@@ -318,8 +281,10 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
               {message.attachments && message.attachments.length > 0 && (
                 <div className="mt-2 space-y-2">
                   {message.attachments.map((attachment: any, index: number) => (
-                    <div key={index} className="border border-border rounded-lg overflow-hidden max-w-full md:max-w-md">
-                      {isImage(attachment.mimeType) && attachment.url ? (
+                    <div key={index} className={`${is3DModel(attachment.mimeType, attachment.filename) ? '' : 'border border-border rounded-lg overflow-hidden max-w-full md:max-w-md'}`}>
+                      {is3DModel(attachment.mimeType, attachment.filename) && attachment.url ? (
+                        <ModelViewer url={attachment.url} filename={attachment.filename} />
+                      ) : isImage(attachment.mimeType) && attachment.url ? (
                         <img
                           src={attachment.url}
                           alt={attachment.filename}
@@ -387,7 +352,7 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
                   {message.reactions.map((reaction: any) => (
                     <button
                       key={reaction.emoji}
-                      onClick={() => handleReaction(reaction.emoji)}
+                      onClick={() => void handleReaction(reaction.emoji)}
                       className="reaction-button"
                     >
                       <span>{reaction.emoji}</span>
@@ -434,7 +399,7 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
                     {commonEmojis.map((emoji) => (
                       <button
                         key={emoji}
-                        onClick={() => handleReaction(emoji)}
+                        onClick={() => void handleReaction(emoji)}
                         className="w-10 h-10 flex items-center justify-center hover:bg-accent rounded text-lg"
                       >
                         {emoji}
@@ -470,7 +435,7 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
 
             {canPin && (
               <button
-                onClick={handlePin}
+                onClick={() => void handlePin()}
                 className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground"
                 title={message.pinnedAt ? "Unpin message" : "Pin message"}
               >
@@ -494,7 +459,7 @@ export function Message({ message, workspaceId, showAvatar, onReply, onOpenThrea
             
             {canDelete && (
               <button
-                onClick={handleDelete}
+                onClick={() => void handleDelete()}
                 className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-red-500"
                 title="Delete"
               >
