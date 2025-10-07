@@ -102,6 +102,13 @@ const applicationTables = {
   })
     .index("by_message", ["messageId"])
     .index("by_message_user", ["messageId", "userId"]),
+
+  channelNotifications: defineTable({
+    channelId: v.id("channels"),
+    userId: v.id("users"),
+    enabled: v.boolean(),
+  })
+    .index("by_channel_user", ["channelId", "userId"]),
 };
 
 export default defineSchema({

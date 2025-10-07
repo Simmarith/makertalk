@@ -470,8 +470,11 @@ export function Sidebar({
           {!showInviteForm ? (
             <button
               onClick={() => setShowInviteForm(true)}
-              className="w-full py-2 px-3 text-sm border border-border rounded hover:bg-accent transition-colors"
+              className="w-full py-2 px-3 text-sm border border-border rounded hover:bg-accent transition-colors flex items-center gap-2"
             >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
               Invite People
             </button>
           ) : (
@@ -494,6 +497,18 @@ export function Sidebar({
               </div>
             </div>
           )}
+          
+          <a
+            href="https://github.com/Simmarith/makertalk/issues/new"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-2 px-3 text-sm border border-border rounded hover:bg-accent transition-colors flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Report Issue
+          </a>
         </div>
       </div>
     </div>

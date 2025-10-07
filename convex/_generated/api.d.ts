@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as channelNotifications from "../channelNotifications.js";
 import type * as channels from "../channels.js";
 import type * as directMessages from "../directMessages.js";
 import type * as http from "../http.js";
@@ -35,6 +36,7 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  channelNotifications: typeof channelNotifications;
   channels: typeof channels;
   directMessages: typeof directMessages;
   http: typeof http;

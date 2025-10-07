@@ -22,6 +22,8 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel, onS
   const channel = useQuery(api.channels.get, channelId ? { channelId } : "skip");
   const dm = useQuery(api.directMessages.get, dmId ? { dmId } : "skip");
   const currentUser = useQuery(api.auth.loggedInUser);
+  const notificationsEnabled = useQuery(api.channelNotifications.get, channelId ? { channelId } : "skip");
+  const toggleNotifications = useMutation(api.channelNotifications.toggle);
   const workspaceMembers = useQuery(api.workspaces.getMembers, { workspaceId });
   const workspaceMembership = useQuery(
     api.workspaces.getMembership,
@@ -74,6 +76,14 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel, onS
       if (msg.senderId === currentUser._id) return;
       if (!document.hidden) return;
 
+      if (channelId && notificationsEnabled) {
+        showNotification('New message', {
+          body: `${msg.sender?.name || msg.sender?.email || 'Someone'}: ${msg.text.slice(0, 100)}`,
+          icon: msg.sender?.image,
+          tag: `channel-${channelId}`,
+        });
+      }
+
       const mentionRegex = new RegExp(`@${currentUser.email}`, 'i');
       if (mentionRegex.test(msg.text)) {
         showNotification('You were mentioned', {
@@ -84,7 +94,7 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel, onS
     });
 
     prevMessagesRef.current = messages.page;
-  }, [messages?.page, currentUser]);
+  }, [messages?.page, currentUser, channelId, notificationsEnabled]);
 
   const handleSendMessage = async (text: string, attachments?: any[], linkPreviews?: any[]) => {
     if (!text.trim() && (!attachments || attachments.length === 0)) return;
@@ -309,6 +319,21 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel, onS
                   </div>
                 )}
               </div>
+              {channelId && (
+                <button
+                  onClick={() => channelId && void toggleNotifications({ channelId, enabled: !notificationsEnabled })}
+                  className={`p-1 hover:bg-accent rounded ${notificationsEnabled ? 'text-primary' : 'text-muted-foreground'}`}
+                  title={notificationsEnabled ? 'Disable notifications' : 'Enable notifications'}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {notificationsEnabled ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13.5v-8A2.5 2.5 0 0017.5 3h-11A2.5 2.5 0 004 5.5v8m16 0l-2.5 2.5m2.5-2.5l-2.5-2.5M4 13.5l2.5 2.5M4 13.5l2.5-2.5m5 5.5v1a3 3 0 11-6 0v-1m6 0H9" />
+                    )}
+                  </svg>
+                </button>
+              )}
               {channelId && canEditChannel && (
                 <button
                   onClick={() => void handleDeleteChannel()}
