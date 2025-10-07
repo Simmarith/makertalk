@@ -217,6 +217,12 @@ export default function ModelViewer({ url, filename }: ModelViewerProps) {
     const gridHelper = new THREE.GridHelper(10, 10, 0x888888, 0xcccccc);
     scene.add(gridHelper);
 
+    // Add touch-friendly styles to canvas
+    renderer.domElement.style.touchAction = 'none';
+    renderer.domElement.style.userSelect = 'none';
+    renderer.domElement.style.webkitUserSelect = 'none';
+    renderer.domElement.style.outline = 'none';
+
     container.appendChild(renderer.domElement);
 
     // Load model
@@ -252,50 +258,132 @@ export default function ModelViewer({ url, filename }: ModelViewerProps) {
         handleError();
       });
 
-    // Mouse controls
+    // Input controls (mouse and touch)
     let isDragging = false;
-    let previousMousePosition = { x: 0, y: 0 };
+    let previousPosition = { x: 0, y: 0 };
+    let previousTouchDistance = 0;
     const rotationSpeed = 0.005;
+    const zoomSpeed = 0.01;
 
+    // Get pointer position (works for both mouse and touch)
+    const getPointerPosition = (event: MouseEvent | TouchEvent): { x: number, y: number } => {
+      if ('touches' in event && event.touches.length > 0) {
+        return { x: event.touches[0].clientX, y: event.touches[0].clientY };
+      } else if ('clientX' in event) {
+        return { x: event.clientX, y: event.clientY };
+      }
+      return { x: 0, y: 0 };
+    };
+
+    // Get distance between two touches (for pinch zoom)
+    const getTouchDistance = (touches: TouchList): number => {
+      if (touches.length < 2) return 0;
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    // Mouse events
     const onMouseDown = (event: MouseEvent) => {
       isDragging = true;
-      previousMousePosition = { x: event.clientX, y: event.clientY };
+      previousPosition = getPointerPosition(event);
     };
 
     const onMouseMove = (event: MouseEvent) => {
       if (!isDragging || !meshRef.current) return;
 
+      const currentPosition = getPointerPosition(event);
       const deltaMove = {
-        x: event.clientX - previousMousePosition.x,
-        y: event.clientY - previousMousePosition.y
+        x: currentPosition.x - previousPosition.x,
+        y: currentPosition.y - previousPosition.y
       };
 
       meshRef.current.rotation.y += deltaMove.x * rotationSpeed;
       meshRef.current.rotation.x += deltaMove.y * rotationSpeed;
 
-      previousMousePosition = { x: event.clientX, y: event.clientY };
+      previousPosition = currentPosition;
     };
 
     const onMouseUp = () => {
       isDragging = false;
     };
 
+    // Touch events
+    const onTouchStart = (event: TouchEvent) => {
+      event.preventDefault();
+      if (event.touches.length === 1) {
+        isDragging = true;
+        previousPosition = getPointerPosition(event);
+      } else if (event.touches.length === 2) {
+        isDragging = false;
+        previousTouchDistance = getTouchDistance(event.touches);
+      }
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      event.preventDefault();
+      
+      if (event.touches.length === 1 && isDragging && meshRef.current) {
+        // Single touch - rotation
+        const currentPosition = getPointerPosition(event);
+        const deltaMove = {
+          x: currentPosition.x - previousPosition.x,
+          y: currentPosition.y - previousPosition.y
+        };
+
+        meshRef.current.rotation.y += deltaMove.x * rotationSpeed;
+        meshRef.current.rotation.x += deltaMove.y * rotationSpeed;
+
+        previousPosition = currentPosition;
+      } else if (event.touches.length === 2 && cameraRef.current) {
+        // Two touch - pinch zoom
+        const currentDistance = getTouchDistance(event.touches);
+        if (previousTouchDistance > 0) {
+          const deltaDistance = currentDistance - previousTouchDistance;
+          const factor = 1 - (deltaDistance * zoomSpeed);
+          
+          cameraRef.current.position.multiplyScalar(factor);
+          cameraRef.current.position.clampLength(1, 50);
+        }
+        previousTouchDistance = currentDistance;
+      }
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      event.preventDefault();
+      if (event.touches.length === 0) {
+        isDragging = false;
+        previousTouchDistance = 0;
+      } else if (event.touches.length === 1) {
+        isDragging = true;
+        previousPosition = getPointerPosition(event);
+        previousTouchDistance = 0;
+      }
+    };
+
+    // Mouse wheel zoom
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       const camera = cameraRef.current;
       if (!camera) return;
 
-      const zoomSpeed = 0.1;
-      const factor = 1 + (event.deltaY > 0 ? zoomSpeed : -zoomSpeed);
+      const wheelZoomSpeed = 0.1;
+      const factor = 1 + (event.deltaY > 0 ? wheelZoomSpeed : -wheelZoomSpeed);
       
       camera.position.multiplyScalar(factor);
       camera.position.clampLength(1, 50);
     };
 
+    // Add event listeners
     renderer.domElement.addEventListener('mousedown', onMouseDown);
     renderer.domElement.addEventListener('mousemove', onMouseMove);
     renderer.domElement.addEventListener('mouseup', onMouseUp);
     renderer.domElement.addEventListener('wheel', onWheel);
+    
+    // Touch event listeners
+    renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: false });
+    renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
+    renderer.domElement.addEventListener('touchend', onTouchEnd, { passive: false });
 
     // Animation loop
     const animate = () => {
@@ -314,6 +402,11 @@ export default function ModelViewer({ url, filename }: ModelViewerProps) {
       renderer.domElement.removeEventListener('mousemove', onMouseMove);
       renderer.domElement.removeEventListener('mouseup', onMouseUp);
       renderer.domElement.removeEventListener('wheel', onWheel);
+      
+      // Remove touch event listeners
+      renderer.domElement.removeEventListener('touchstart', onTouchStart);
+      renderer.domElement.removeEventListener('touchmove', onTouchMove);
+      renderer.domElement.removeEventListener('touchend', onTouchEnd);
       
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
@@ -398,8 +491,13 @@ export default function ModelViewer({ url, filename }: ModelViewerProps) {
       
       <div 
         ref={containerRef}
-        className="relative"
-        style={{ height: isExpanded ? '500px' : '250px' }}
+        className="relative select-none"
+        style={{ 
+          height: isExpanded ? '500px' : '250px',
+          touchAction: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none'
+        }}
       >
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10">
@@ -414,7 +512,7 @@ export default function ModelViewer({ url, filename }: ModelViewerProps) {
       {!loading && !error && (
         <div className="p-2 border-t border-border bg-muted/30">
           <div className="text-xs text-muted-foreground">
-            💡 Click and drag to rotate • Scroll to zoom
+            💡 Drag to rotate • Scroll/pinch to zoom
           </div>
         </div>
       )}
