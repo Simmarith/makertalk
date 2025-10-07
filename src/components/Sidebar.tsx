@@ -27,14 +27,16 @@ export function Sidebar({
 }: SidebarProps) {
   const rawChannels = useQuery(api.channels.list, { workspaceId });
   const channels = useMemo(() => rawChannels || [], [rawChannels]);
+  const [hasAutoSelected, setHasAutoSelected] = useState(false);
   // Auto-select last channel on workspace change
   useEffect(() => {
-    if (!channels.length) return;
+    if (!channels.length || hasAutoSelected) return;
     const lastChannelId = localStorage.getItem(`lastChannelId:${workspaceId}`);
     if (lastChannelId && channels.some(c => c?._id === lastChannelId)) {
       onSelectChannel(lastChannelId);
+      setHasAutoSelected(true);
     }
-  }, [channels, workspaceId, onSelectChannel]);
+  }, [channels, workspaceId, onSelectChannel, hasAutoSelected]);
   const dms = useQuery(api.directMessages.list, { workspaceId }) || [];
   const workspaceMembers = useQuery(api.workspaces.getMembers, { workspaceId }) || [];
   const createChannel = useMutation(api.channels.create);
@@ -246,7 +248,11 @@ export function Sidebar({
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-bold text-foreground truncate">{workspace.name}</h2>
           <button
-            onClick={onBackToWorkspaces}
+            onClick={() => {
+              localStorage.removeItem("lastWorkspaceId");
+              localStorage.removeItem(`lastChannelId:${workspaceId}`);
+              onBackToWorkspaces();
+            }}
             className="p-1 hover:bg-accent rounded text-muted-foreground"
             title="Back to workspaces"
           >

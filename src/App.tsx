@@ -53,7 +53,10 @@ function Content() {
         ) : (
           <ChatInterface 
             workspaceId={selectedWorkspaceId} 
-            onBackToWorkspaces={() => setSelectedWorkspaceId(null)}
+            onBackToWorkspaces={() => {
+              localStorage.removeItem("lastWorkspaceId");
+              setSelectedWorkspaceId(null);
+            }}
           />
         )}
       </Authenticated>
