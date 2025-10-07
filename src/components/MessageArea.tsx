@@ -74,7 +74,6 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel, onS
 
     newMessages.forEach((msg: any) => {
       if (msg.senderId === currentUser._id) return;
-      if (!document.hidden) return;
 
       if (channelId && notificationsEnabled) {
         showNotification('New message', {
