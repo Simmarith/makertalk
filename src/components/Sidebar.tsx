@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -25,7 +25,16 @@ export function Sidebar({
   onSelectDm,
   onBackToWorkspaces,
 }: SidebarProps) {
-  const channels = useQuery(api.channels.list, { workspaceId }) || [];
+  const rawChannels = useQuery(api.channels.list, { workspaceId });
+  const channels = useMemo(() => rawChannels || [], [rawChannels]);
+  // Auto-select last channel on workspace change
+  useEffect(() => {
+    if (!channels.length) return;
+    const lastChannelId = localStorage.getItem(`lastChannelId:${workspaceId}`);
+    if (lastChannelId && channels.some(c => c?._id === lastChannelId)) {
+      onSelectChannel(lastChannelId);
+    }
+  }, [channels, workspaceId, onSelectChannel]);
   const dms = useQuery(api.directMessages.list, { workspaceId }) || [];
   const workspaceMembers = useQuery(api.workspaces.getMembers, { workspaceId }) || [];
   const createChannel = useMutation(api.channels.create);
@@ -136,7 +145,7 @@ export function Sidebar({
       setChannelName("");
       setChannelDescription("");
       setIsPrivate(false);
-    } catch (error) {
+    } catch {
       toast.error("Failed to create channel");
     } finally {
       setLoading(false);
@@ -151,7 +160,7 @@ export function Sidebar({
       await navigator.clipboard.writeText(inviteUrl);
       toast.success("Invite link copied to clipboard!");
       setShowInviteForm(false);
-    } catch (error) {
+    } catch {
       toast.error("Failed to generate invite");
     } finally {
       setLoading(false);
@@ -162,14 +171,13 @@ export function Sidebar({
     try {
       await joinChannel({ channelId: channelId as Id<"channels"> });
       onSelectChannel(channelId);
-    } catch (error) {
+    } catch {
       toast.error("Failed to join channel");
     }
   };
 
   const handleAddMember = async (userId: string) => {
     if (!showAddMemberModal) return;
-    
     setLoading(true);
     try {
       await addMemberToChannel({
@@ -186,7 +194,6 @@ export function Sidebar({
 
   const handleRemoveMember = async (userId: string) => {
     if (!showAddMemberModal) return;
-    
     setLoading(true);
     try {
       await removeMemberFromChannel({
@@ -272,7 +279,7 @@ export function Sidebar({
           </div>
 
           {showCreateChannel && (
-            <form onSubmit={handleCreateChannel} className="mb-4 p-3 border border-border rounded-lg bg-background">
+            <form onSubmit={e => { void handleCreateChannel(e); }} className="mb-4 p-3 border border-border rounded-lg bg-background">
               <div className="space-y-3">
                 <input
                   type="text"
@@ -330,7 +337,10 @@ export function Sidebar({
                 onDrop={(e) => void handleDrop(e, channel._id)}
               >
                 <button
-                  onClick={() => onSelectChannel(channel._id)}
+                  onClick={() => {
+                    localStorage.setItem(`lastChannelId:${workspaceId}`, channel._id);
+                    onSelectChannel(channel._id);
+                  }}
                   className={`flex-1 text-left px-2 py-1 rounded text-sm hover:bg-accent transition-colors ${
                     selectedChannelId === channel._id ? 'bg-accent' : ''
                   } ${canReorder ? 'cursor-move' : ''}`}

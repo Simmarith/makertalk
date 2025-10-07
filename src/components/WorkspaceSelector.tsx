@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
@@ -12,10 +12,12 @@ interface WorkspaceSelectorProps {
 }
 
 export function WorkspaceSelector({ onSelectWorkspace, inviteToken, onInviteProcessed }: WorkspaceSelectorProps) {
-  const workspaces = useQuery(api.workspaces.list) || [];
+
+  const rawWorkspaces = useQuery(api.workspaces.list);
+  const workspaces = useMemo(() => rawWorkspaces || [], [rawWorkspaces]);
   const createWorkspace = useMutation(api.workspaces.create);
   const joinByInvite = useMutation(api.workspaces.joinByInvite);
-  
+
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [workspaceName, setWorkspaceName] = useState("");
@@ -23,12 +25,21 @@ export function WorkspaceSelector({ onSelectWorkspace, inviteToken, onInviteProc
   const [inviteTokenInput, setInviteTokenInput] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Auto-select last workspace on mount
+  useEffect(() => {
+    const lastWorkspaceId = localStorage.getItem("lastWorkspaceId");
+    if (lastWorkspaceId && workspaces.some(w => w?._id === lastWorkspaceId)) {
+      onSelectWorkspace(lastWorkspaceId);
+    }
+  }, [workspaces, onSelectWorkspace]);
+
   useEffect(() => {
     if (inviteToken) {
       setLoading(true);
       joinByInvite({ token: inviteToken })
         .then((workspaceId) => {
           toast.success("Joined workspace successfully!");
+          localStorage.setItem("lastWorkspaceId", workspaceId);
           onSelectWorkspace(workspaceId);
           onInviteProcessed?.();
         })
@@ -43,7 +54,6 @@ export function WorkspaceSelector({ onSelectWorkspace, inviteToken, onInviteProc
   const handleCreateWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!workspaceName.trim()) return;
-
     setLoading(true);
     try {
       const workspaceId = await createWorkspace({
@@ -51,8 +61,9 @@ export function WorkspaceSelector({ onSelectWorkspace, inviteToken, onInviteProc
         description: workspaceDescription.trim() || undefined,
       });
       toast.success("Workspace created successfully!");
+      localStorage.setItem("lastWorkspaceId", workspaceId);
       onSelectWorkspace(workspaceId);
-    } catch (error) {
+    } catch {
       toast.error("Failed to create workspace");
     } finally {
       setLoading(false);
@@ -62,13 +73,13 @@ export function WorkspaceSelector({ onSelectWorkspace, inviteToken, onInviteProc
   const handleJoinWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteTokenInput.trim()) return;
-
     setLoading(true);
     try {
       const workspaceId = await joinByInvite({ token: inviteTokenInput.trim() });
       toast.success("Joined workspace successfully!");
+      localStorage.setItem("lastWorkspaceId", workspaceId);
       onSelectWorkspace(workspaceId);
-    } catch (error) {
+    } catch {
       toast.error("Failed to join workspace. Check your invite link.");
     } finally {
       setLoading(false);
@@ -100,7 +111,10 @@ export function WorkspaceSelector({ onSelectWorkspace, inviteToken, onInviteProc
               {workspaces.filter((workspace): workspace is NonNullable<typeof workspace> => Boolean(workspace)).map((workspace) => (
                 <button
                   key={workspace._id}
-                  onClick={() => onSelectWorkspace(workspace._id)}
+                  onClick={() => {
+                    localStorage.setItem("lastWorkspaceId", workspace._id);
+                    onSelectWorkspace(workspace._id);
+                  }}
                   className="p-6 border border-border rounded-lg hover:border-primary hover:bg-accent transition-colors text-left"
                 >
                   <h4 className="font-semibold text-foreground mb-2">{workspace.name}</h4>
@@ -128,7 +142,7 @@ export function WorkspaceSelector({ onSelectWorkspace, inviteToken, onInviteProc
                 Create Workspace
               </button>
             ) : (
-              <form onSubmit={handleCreateWorkspace} className="space-y-4">
+              <form onSubmit={e => { void handleCreateWorkspace(e); }} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">
                     Workspace Name *
@@ -185,7 +199,7 @@ export function WorkspaceSelector({ onSelectWorkspace, inviteToken, onInviteProc
                 Join with Invite
               </button>
             ) : (
-              <form onSubmit={handleJoinWorkspace} className="space-y-4">
+              <form onSubmit={e => { void handleJoinWorkspace(e); }} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">
                     Invite Token
