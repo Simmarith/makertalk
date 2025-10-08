@@ -22,7 +22,17 @@ export async function requestNotificationPermission() {
 export async function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     try {
-      await navigator.serviceWorker.register('/sw.js');
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
+              window.location.reload();
+            }
+          });
+        }
+      });
     } catch (error) {
       console.error('Service worker registration failed:', error);
     }
