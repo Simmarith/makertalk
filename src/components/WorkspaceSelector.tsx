@@ -8,11 +8,9 @@ import { ThemeToggle } from "./ThemeToggle";
 interface WorkspaceSelectorProps {
   onSelectWorkspace: (workspaceId: string) => void;
   inviteToken?: string | null;
-  onInviteProcessed?: () => void;
 }
 
-export function WorkspaceSelector({ onSelectWorkspace, inviteToken, onInviteProcessed }: WorkspaceSelectorProps) {
-
+export function WorkspaceSelector({ onSelectWorkspace, inviteToken }: WorkspaceSelectorProps) {
   const rawWorkspaces = useQuery(api.workspaces.list);
   const workspaces = useMemo(() => rawWorkspaces || [], [rawWorkspaces]);
   const createWorkspace = useMutation(api.workspaces.create);
@@ -41,15 +39,13 @@ export function WorkspaceSelector({ onSelectWorkspace, inviteToken, onInviteProc
           toast.success("Joined workspace successfully!");
           localStorage.setItem("lastWorkspaceId", workspaceId);
           onSelectWorkspace(workspaceId);
-          onInviteProcessed?.();
         })
         .catch(() => {
           toast.error("Failed to join workspace. Invalid invite link.");
-          onInviteProcessed?.();
         })
         .finally(() => setLoading(false));
     }
-  }, [inviteToken, joinByInvite, onSelectWorkspace, onInviteProcessed]);
+  }, [inviteToken, joinByInvite, onSelectWorkspace]);
 
   const handleCreateWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();

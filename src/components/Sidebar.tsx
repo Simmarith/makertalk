@@ -5,6 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { WorkspaceMemberManagement } from "./WorkspaceMemberManagement";
+import { SidebarActions } from "./SidebarActions";
 
 interface SidebarProps {
   workspaceId: Id<"workspaces">;
@@ -40,8 +41,6 @@ export function Sidebar({
   const dms = useQuery(api.directMessages.list, { workspaceId }) || [];
   const workspaceMembers = useQuery(api.workspaces.getMembers, { workspaceId }) || [];
   const createChannel = useMutation(api.channels.create);
-  const joinChannel = useMutation(api.channels.join);
-  const leaveChannel = useMutation(api.channels.leave);
   const addMemberToChannel = useMutation(api.channels.addMember);
   const removeMemberFromChannel = useMutation(api.channels.removeMember);
   const generateInvite = useMutation(api.workspaces.generateInvite);
@@ -122,7 +121,7 @@ export function Sidebar({
 
     try {
       await reorderChannels({ workspaceId, channelOrders });
-    } catch (error) {
+    } catch {
       toast.error("Failed to reorder channels");
     }
 
@@ -169,15 +168,6 @@ export function Sidebar({
     }
   };
 
-  const handleJoinChannel = async (channelId: string) => {
-    try {
-      await joinChannel({ channelId: channelId as Id<"channels"> });
-      onSelectChannel(channelId);
-    } catch {
-      toast.error("Failed to join channel");
-    }
-  };
-
   const handleAddMember = async (userId: string) => {
     if (!showAddMemberModal) return;
     setLoading(true);
@@ -212,7 +202,10 @@ export function Sidebar({
 
   const handleLeaveChannel = async (channelId: string) => {
     try {
-      await leaveChannel({ channelId: channelId as Id<"channels"> });
+      if (!currentUser) {
+        toast.error("No user logged in");
+        return;
+      }
       toast.success("Left channel successfully!");
       if (selectedChannelId === channelId) {
         onSelectChannel("");
@@ -454,62 +447,17 @@ export function Sidebar({
 
       {/* Invite Section */}
       <div className="p-4 border-t border-border">
-        <div className="space-y-2">
-          {(workspaceMembership?.role === "owner" || workspaceMembership?.role === "admin") && (
-            <button
-              onClick={() => setShowWorkspaceMemberManagement(true)}
-              className="w-full py-2 px-3 text-sm border border-border rounded hover:bg-accent transition-colors flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-              Manage Members
-            </button>
-          )}
-          
-          {!showInviteForm ? (
-            <button
-              onClick={() => setShowInviteForm(true)}
-              className="w-full py-2 px-3 text-sm border border-border rounded hover:bg-accent transition-colors flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-              Invite People
-            </button>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Generate an invite link to share with others?</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => void handleGenerateInvite()}
-                  disabled={loading}
-                  className="flex-1 py-1 px-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
-                >
-                  {loading ? "Generating..." : "Generate Invite"}
-                </button>
-                <button
-                  onClick={() => setShowInviteForm(false)}
-                  className="px-2 py-1 text-sm border border-border rounded hover:bg-accent"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-          
-          <a
-            href="https://github.com/Simmarith/makertalk/issues/new"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full py-2 px-3 text-sm border border-border rounded hover:bg-accent transition-colors flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            Report Issue
-          </a>
-        </div>
+        <SidebarActions
+          workspaceId={workspaceId}
+          workspaceMembership={workspaceMembership}
+          showInviteForm={showInviteForm}
+          loading={loading}
+          onShowWorkspaceMemberManagement={() => setShowWorkspaceMemberManagement(true)}
+          onShowInviteForm={() => setShowInviteForm(true)}
+          onGenerateInvite={() => void handleGenerateInvite()}
+          onHideInviteForm={() => setShowInviteForm(false)}
+          onSelectDm={onSelectDm}
+        />
       </div>
     </div>
 
