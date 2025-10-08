@@ -12,13 +12,14 @@ import { requestNotificationPermission, showNotification } from "../utils/notifi
 
 interface MessageAreaProps {
   workspaceId: Id<"workspaces">;
+  workspaceName: string;
   channelId: Id<"channels"> | null;
   dmId: Id<"directMessages"> | null;
   onSelectChannel: (channelId: string) => void;
   onSelectDm: (dmId: string) => void;
 }
 
-export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel, onSelectDm }: MessageAreaProps) {
+export function MessageArea({ workspaceId, workspaceName, channelId, dmId, onSelectChannel, onSelectDm }: MessageAreaProps) {
   const channel = useQuery(api.channels.get, channelId ? { channelId } : "skip");
   const dm = useQuery(api.directMessages.get, dmId ? { dmId } : "skip");
   const currentUser = useQuery(api.auth.loggedInUser);
@@ -59,7 +60,7 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel, onS
   const isChannelCreator = currentUser && channel?.createdBy === currentUser._id;
   const isOwnerOrAdmin = workspaceMembership?.role === "owner" || workspaceMembership?.role === "admin";
   const canEditChannel = isChannelCreator || isOwnerOrAdmin;
-  const prevMessagesRef = useRef<any[]>([]);
+  const notifiedMessagesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     void requestNotificationPermission();
@@ -68,32 +69,29 @@ export function MessageArea({ workspaceId, channelId, dmId, onSelectChannel, onS
   useEffect(() => {
     if (!currentUser || !messages?.page) return;
 
-    const newMessages = messages.page.filter(
-      (msg: any) => !prevMessagesRef.current.some((prev: any) => prev._id === msg._id)
-    );
-
-    newMessages.forEach((msg: any) => {
+    messages.page.forEach((msg: any) => {
       if (msg.senderId === currentUser._id) return;
+      if (notifiedMessagesRef.current.has(msg._id)) return;
 
-      if (channelId && notificationsEnabled) {
-        showNotification('New message', {
+      if (channelId && notificationsEnabled && channel) {
+        showNotification(`${workspaceName} #${channel.name}`, {
           body: `${msg.sender?.name || msg.sender?.email || 'Someone'}: ${msg.text.slice(0, 100)}`,
           icon: msg.sender?.image,
           tag: `channel-${channelId}`,
         });
+        notifiedMessagesRef.current.add(msg._id);
       }
 
       const mentionRegex = new RegExp(`@${currentUser.email}`, 'i');
       if (mentionRegex.test(msg.text)) {
-        showNotification('You were mentioned', {
+        showNotification(`${workspaceName} - You were mentioned`, {
           body: `${msg.sender?.name || msg.sender?.email || 'Someone'}: ${msg.text.slice(0, 100)}`,
           icon: msg.sender?.image,
         });
+        notifiedMessagesRef.current.add(msg._id);
       }
     });
-
-    prevMessagesRef.current = messages.page;
-  }, [messages?.page, currentUser, channelId, notificationsEnabled]);
+  }, [messages?.page, currentUser, channelId, notificationsEnabled, channel, workspaceName]);
 
   const handleSendMessage = async (text: string, attachments?: any[], linkPreviews?: any[]) => {
     if (!text.trim() && (!attachments || attachments.length === 0)) return;

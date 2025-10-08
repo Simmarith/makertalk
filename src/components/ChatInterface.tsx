@@ -94,6 +94,7 @@ export function ChatInterface({ workspaceId, onBackToWorkspaces }: ChatInterface
         <div className="flex-1 overflow-hidden">
           <MessageArea
             workspaceId={workspaceId as Id<"workspaces">}
+            workspaceName={workspace.name}
             channelId={selectedChannelId as Id<"channels"> | null}
             dmId={selectedDmId as Id<"directMessages"> | null}
             onSelectChannel={(channelId) => {
