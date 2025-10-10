@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 import { WorkspaceSelector } from "./components/WorkspaceSelector";
 import { ChatInterface } from "./components/ChatInterface";
 import { ThemeProvider } from "./components/ThemeProvider";
-import { useConvexAuth } from "convex/react";
+import { useAuthToken } from "@convex-dev/auth/react";
 
 export default function App() {
   return (
@@ -22,7 +22,7 @@ export default function App() {
 
 function Content() {
   const loggedInUser = useQuery(api.auth.loggedInUser);
-  const { isAuthenticated, fetchAccessToken } = useConvexAuth();
+  const authToken = useAuthToken();
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
 
@@ -36,17 +36,15 @@ function Content() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated && 'serviceWorker' in navigator) {
-      fetchAccessToken().then((token) => {
-        navigator.serviceWorker.ready.then((registration) => {
-          registration.active?.postMessage({
-            type: 'SET_AUTH_TOKEN',
-            token,
-          });
+    if (authToken && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.active?.postMessage({
+          type: 'SET_AUTH_TOKEN',
+          token: authToken,
         });
       });
     }
-  }, [isAuthenticated, fetchAccessToken]);
+  }, [authToken]);
 
   if (loggedInUser === undefined) {
     return (
