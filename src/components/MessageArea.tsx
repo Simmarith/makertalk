@@ -8,7 +8,6 @@ import { MessageComposer } from "./MessageComposer";
 import { MessageList } from "./MessageList";
 import { ThreadPanel } from "./ThreadPanel";
 import { PinnedMessages } from "./PinnedMessages";
-import { requestNotificationPermission, showNotification } from "../utils/notifications";
 
 interface MessageAreaProps {
   workspaceId: Id<"workspaces">;
@@ -60,38 +59,6 @@ export function MessageArea({ workspaceId, workspaceName, channelId, dmId, onSel
   const isChannelCreator = currentUser && channel?.createdBy === currentUser._id;
   const isOwnerOrAdmin = workspaceMembership?.role === "owner" || workspaceMembership?.role === "admin";
   const canEditChannel = isChannelCreator || isOwnerOrAdmin;
-  const notifiedMessagesRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    void requestNotificationPermission();
-  }, []);
-
-  useEffect(() => {
-    if (!currentUser || !messages?.page) return;
-
-    messages.page.forEach((msg: any) => {
-      if (msg.senderId === currentUser._id) return;
-      if (notifiedMessagesRef.current.has(msg._id)) return;
-
-      if (channelId && notificationsEnabled && channel) {
-        showNotification(`${workspaceName} #${channel.name}`, {
-          body: `${msg.sender?.name || msg.sender?.email || 'Someone'}: ${msg.text.slice(0, 100)}`,
-          icon: msg.sender?.image,
-          tag: `channel-${channelId}`,
-        });
-        notifiedMessagesRef.current.add(msg._id);
-      }
-
-      const mentionRegex = new RegExp(`@${currentUser.email}`, 'i');
-      if (mentionRegex.test(msg.text)) {
-        showNotification(`${workspaceName} - You were mentioned`, {
-          body: `${msg.sender?.name || msg.sender?.email || 'Someone'}: ${msg.text.slice(0, 100)}`,
-          icon: msg.sender?.image,
-        });
-        notifiedMessagesRef.current.add(msg._id);
-      }
-    });
-  }, [messages?.page, currentUser, channelId, notificationsEnabled, channel, workspaceName]);
 
   const handleSendMessage = async (text: string, attachments?: any[], linkPreviews?: any[]) => {
     if (!text.trim() && (!attachments || attachments.length === 0)) return;
