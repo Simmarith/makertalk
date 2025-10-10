@@ -52,3 +52,37 @@ export const getUsersToNotify = query({
     return notifications.map((n) => n.userId);
   },
 });
+
+export const getUnnotifiedMessages = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const notifications = await ctx.db
+      .query("channelNotifications")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.eq(q.field("enabled"), true))
+      .collect();
+
+    const unnotifiedMessages = [];
+
+    for (const notification of notifications) {
+      const lastSeen = notification.lastSeen ?? 0;
+      const messages = await ctx.db
+        .query("messages")
+        .withIndex("by_channel_created", (q) => q.eq("channelId", notification.channelId))
+        .filter((q) => q.gt(q.field("createdAt"), lastSeen))
+        .collect();
+
+      unnotifiedMessages.push(...messages);
+
+      if (messages.length > 0) {
+        const latestTimestamp = Math.max(...messages.map((m) => m.createdAt));
+        await ctx.db.patch(notification._id, { lastSeen: latestTimestamp });
+      }
+    }
+
+    return unnotifiedMessages;
+  },
+});

@@ -107,8 +107,10 @@ const applicationTables = {
     channelId: v.id("channels"),
     userId: v.id("users"),
     enabled: v.boolean(),
+    lastSeen: v.optional(v.number()),
   })
-    .index("by_channel_user", ["channelId", "userId"]),
+    .index("by_channel_user", ["channelId", "userId"])
+    .index("by_user", ["userId"]),
 };
 
 export default defineSchema({
